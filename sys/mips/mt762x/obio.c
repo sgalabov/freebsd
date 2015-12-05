@@ -42,9 +42,10 @@ __FBSDID("$FreeBSD$");
 
 #include <machine/bus.h>
 
-#include <mips/rt305x/rt305xreg.h>
-#include <mips/rt305x/obiovar.h>
-#include <mips/rt305x/rt305x_icvar.h>
+#include <mips/mt762x/rt305xreg.h>
+#include <mips/mt762x/obiovar.h>
+#include <mips/mt762x/rt305x_icvar.h>
+#include <mips/mt762x/gic.h>
 
 /* MIPS HW interrupts of IRQ/FIQ respectively */
 #define RT305X_INTR		0
@@ -127,6 +128,12 @@ obio_mask_irq(void *source)
 
 	/* disable IRQ */
 	rt305x_ic_set(IC_INT_DIS, irqmask);
+
+	gic_irq_mask(irq);
+
+	//printf("IRQ%d ACK\n", irq);
+
+	//gic_irq_ack(irq);
 }
 
 static void 
@@ -140,7 +147,7 @@ obio_unmask_irq(void *source)
 
 	/* enable IRQ */
 	rt305x_ic_set(IC_INT_ENA, irqmask);
-
+	gic_irq_unmask(irq);
 }
 
 
@@ -221,10 +228,10 @@ obio_attach(device_t dev)
 	obio_add_res_child(dev, "pcm", 	0, 
 	    PCM_BASE, (PCM_END - PCM_BASE  + 1),
 	    IC_PCM);
-#endif
-	obio_add_res_child(dev, "uart", 0, 
+	obio_add_res_child(dev, "uart", 1, 
 	    UART_BASE, (UART_END - UART_BASE + 1),
 	    IC_UART);
+#endif
 	obio_add_res_child(dev, "gpio", 0, 
 	    PIO_BASE, (PIO_END - PIO_BASE  + 1),
 	    IC_PIO);
@@ -245,24 +252,21 @@ obio_attach(device_t dev)
 	    SPI_BASE, (SPI_END - SPI_BASE  + 1),
 	    -1);
 #endif
-	obio_add_res_child(dev, "uart", 1,
+	obio_add_res_child(dev, "uart", 0,
 	    UARTLITE_BASE, (UARTLITE_END - UARTLITE_BASE + 1),
 	    IC_UARTLITE);
+#ifdef notyet
 	obio_add_res_child(dev, "cfi", 	0,
 	    FLASH_BASE, (FLASH_END - FLASH_BASE  + 1),
 	    -1);
-#ifndef MT7620
+#endif
 	obio_add_res_child(dev, "dotg", 0,
 	    USB_OTG_BASE, (USB_OTG_END - USB_OTG_BASE  + 1),
 	    IC_OTG);
-#else
-	obio_add_res_child(dev, "ehci", 0,
-	    USB_OTG_BASE, (USB_OTG_END - USB_OTG_BASE  + 1),
-	    IC_OTG);
-#endif
 	obio_add_res_child(dev, "switch", 0,
 	    ETHSW_BASE, (ETHSW_END - ETHSW_BASE  + 1),
 	    IC_ETHSW);
+	obio_add_res_child(dev, "pcib", 0, PCI_BASE, PCI_SIZE, -1);
 
 	bus_enumerate_hinted_children(dev);
 	bus_generic_attach(dev);
@@ -474,15 +478,28 @@ obio_intr(void *arg)
 	uint32_t irqstat;
 	int irq;
 
+#if 0
 	irqstat = rt305x_ic_get(IC_IRQ0STAT);
 	irqstat |= rt305x_ic_get(IC_IRQ1STAT);
+#else
+	irqstat = gic_irq_get();
+#endif
+
+	//printf("%s(): 0x%08x\n", __FUNCTION__, irqstat);
 
 	irq = 0;
 	while (irqstat != 0) {
 		if ((irqstat & 1) == 1) {
 			event = sc->sc_eventstab[irq];
-			if (!event || TAILQ_EMPTY(&event->ie_handlers))
+//			gic_irq_ack(irq);
+			//printf("IRQ%d, ", irq);
+			if (!event || TAILQ_EMPTY(&event->ie_handlers)) {
+				printf("IRQ%d no handler(s) cpuid=%d\n", irq,
+					PCPU_GET(cpuid));
 				continue;
+			}
+
+			//printf("IRQ%d calling handler\n", irq);
 
 			/* TODO: pass frame as an argument*/
 			/* TODO: log stray interrupt */

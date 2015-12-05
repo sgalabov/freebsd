@@ -240,7 +240,7 @@ ether_request_mac(device_t dev, uint8_t *mac)
 	 * "ethaddr" is passed via envp on RedBoot platforms
 	 * "kmac" is passed via argv on RouterBOOT platforms
 	 */
-#if defined(__U_BOOT__) ||  defined(__REDBOOT__) || defined(__ROUTERBOOT__)
+#if defined(RT305X_UBOOT) ||  defined(__REDBOOT__) || defined(__ROUTERBOOT__)
 	if ((var = kern_getenv("ethaddr")) != NULL ||
 	    (var = kern_getenv("kmac")) != NULL ) {
 

@@ -1,0 +1,7 @@
+# $FreeBSD$
+# Standard include file for RT305XF SoC
+
+files	"../mt762x/files.rt305x"
+
+cpu		CPU_MIPS1004KC
+

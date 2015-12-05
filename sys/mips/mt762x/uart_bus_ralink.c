@@ -21,18 +21,13 @@
  * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
  * $Id$
  */
 /*
  * Skeleton of this file was based on respective code for ARM
  * code written by Olivier Houchard.
  */
-/*
- * XXXMIPS: This file is hacked from arm/... . XXXMIPS here means this file is
- * experimental and was written for MIPS32 port.
- */
+
 #include "opt_uart.h"
 
 #include <sys/cdefs.h>
@@ -41,46 +36,64 @@ __FBSDID("$FreeBSD$");
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/bus.h>
-#include <sys/cons.h>
-
+#include <sys/conf.h>
+#include <sys/kernel.h>
+#include <sys/module.h>
 #include <machine/bus.h>
+#include <sys/rman.h>
+#include <machine/resource.h>
 
 #include <dev/uart/uart.h>
+#include <dev/uart/uart_bus.h>
 #include <dev/uart/uart_cpu.h>
 
-#include <mips/rt305x/rt305xreg.h>
+#include "uart_if.h"
 
-extern struct uart_class uart_rt305x_uart_class;
-bus_space_tag_t uart_bus_space_io;
-bus_space_tag_t uart_bus_space_mem;
+static int uart_ralink_probe(device_t dev);
 
-int
-uart_cpu_eqres(struct uart_bas *b1, struct uart_bas *b2)
+static device_method_t uart_ralink_methods[] = {
+	/* Device interface */
+	DEVMETHOD(device_probe,		uart_ralink_probe),
+	DEVMETHOD(device_attach,	uart_bus_attach),
+	DEVMETHOD(device_detach,	uart_bus_detach),
+	{ 0, 0 }
+};
+
+static driver_t uart_ralink_driver = {
+	uart_driver_name,
+	uart_ralink_methods,
+	sizeof(struct uart_softc),
+};
+
+#define _REG(x)		(*((volatile uint32_t *)(x)))
+
+extern SLIST_HEAD(uart_devinfo_list, uart_devinfo) uart_sysdevs;
+static int
+uart_ralink_probe(device_t dev)
 {
+	struct uart_softc *sc;
+	uint32_t reg, reg1;
 
-	return ((b1->bsh == b2->bsh && b1->bst == b2->bst) ? 1 : 0);
+	sc = device_get_softc(dev);
+	sc->sc_sysdev = SLIST_FIRST(&uart_sysdevs);
+	sc->sc_class = &uart_ns8250_class;
+	bcopy(&sc->sc_sysdev->bas, &sc->sc_bas, sizeof(sc->sc_bas));
+	sc->sc_sysdev->bas.bst = mips_bus_space_generic;
+	sc->sc_sysdev->bas.bsh = 0xbe000c00;
+	sc->sc_sysdev->bas.regshft = 2;
+	sc->sc_bas.bst = mips_bus_space_generic;
+	sc->sc_bas.bsh = 0xbe000c00;
+	sc->sc_bas.regshft = 2;
+
+	reg = _REG(0xbe000c00 + 0xc);
+	printf("%s(): 0x%02x\n", __FUNCTION__, reg);
+	_REG(0xbe000c00 + 0xc) = 0xbf;
+	reg1 = _REG(0xbe000c00 + 0x8);
+	_REG(0xbe000c00 + 0x8) = 0xd0;
+	_REG(0xbe000c00 + 0xc) = reg;
+	printf("%s(): 0x%02x\n", __FUNCTION__, reg1);
+
+	return(uart_bus_probe(dev, 2, 50000000, 0, 0));
 }
 
-int
-uart_cpu_getdev(int devtype, struct uart_devinfo *di)
-{
-	di->ops = uart_getops(&uart_rt305x_uart_class);
-	di->bas.chan = 0;
-	di->bas.bst = mips_bus_space_generic;
-	di->bas.regshft = 2;
-	di->bas.rclk = SYSTEM_CLOCK;
-	di->baudrate = 115200;
-	di->databits = 8;
-	di->stopbits = 1;
-
-	di->parity = UART_PARITY_NONE;
-
-	uart_bus_space_io = NULL;
-	uart_bus_space_mem = mips_bus_space_generic;
-#ifdef RT305X_USE_UART
-	di->bas.bsh = MIPS_PHYS_TO_KSEG1(UART_BASE);
-#else
-	di->bas.bsh = MIPS_PHYS_TO_KSEG1(UARTLITE_BASE);
-#endif
-	return (0);
-}
+DRIVER_MODULE(uart, obio, uart_ralink_driver, uart_devclass, 0, 0);

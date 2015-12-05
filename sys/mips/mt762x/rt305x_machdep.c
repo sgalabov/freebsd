@@ -29,6 +29,7 @@
 __FBSDID("$FreeBSD$");
 
 #include "opt_ddb.h"
+#include "opt_global.h"
 
 #include <sys/param.h>
 #include <sys/conf.h>
@@ -55,6 +56,7 @@ __FBSDID("$FreeBSD$");
 #include <vm/vm_object.h>
 #include <vm/vm_page.h>
 
+#include <machine/bus.h>
 #include <machine/cache.h>
 #include <machine/clock.h>
 #include <machine/cpu.h>
@@ -70,16 +72,31 @@ __FBSDID("$FreeBSD$");
 #include <machine/trap.h>
 #include <machine/vmparam.h>
 
-#include <mips/rt305x/rt305xreg.h>
+#include <mips/mt762x/rt305xreg.h>
+#include <mips/mt762x/rt305x_sysctlvar.h>
+#include <mips/mt762x/gic.h>
+#include <mips/mt762x/mips_cm.h>
 
 extern int	*edata;
 extern int	*end;
 static char 	boot1_env[0x1000];
 
+#define RT305X_IPI_INTERRUPT 41
+
+#define RESET()	do { \
+	*((volatile uint32_t *)0xbe000034) = 1; \
+        while (1);				\
+} while (0)
+
+#define ECHO() do { \
+	*((volatile uint32_t *)0xbe000c04) = 'e'; \
+	*((volatile uint32_t *)0xbe000d04) = 'e'; \
+} while (0)
 
 void
 platform_cpu_init()
 {
+
 	/* Nothing special */
 }
 
@@ -87,17 +104,12 @@ static void
 mips_init(void)
 {
 	int i;
-	char *memsize;
 
 	printf("entry: mips_init()\n");
 
-	if ((memsize = kern_getenv("memsize")) != NULL)
-		realmem = btoc(strtol(memsize, NULL, 0) << 20);
-	else
-		realmem = btoc(32 << 20);
-	
-
 	bootverbose = 1;
+	//realmem = btoc(448 << 20);
+	realmem = btoc(256 << 20);
 
 	for (i = 0; i < 10; i++) {
 		phys_avail[i] = 0;
@@ -112,6 +124,16 @@ mips_init(void)
 	init_param1();
 	init_param2(physmem);
 	mips_cpu_init();
+#if defined(CPU_MIPS1004KC)
+	if ((*(uint32_t *)(0xbf403000) & 0x81) != 0x81) {
+		printf("HW COHERENCY DISABLED!\n");
+		cpuinfo.cache_coherent_dma = FALSE;
+	} else {
+		printf("HW COHERENCY ENABLED!\n");
+		cpuinfo.cache_coherent_dma = TRUE;
+	}
+	cpuinfo.cache_coherent_dma = FALSE;
+#endif
 	pmap_bootstrap();
 	mips_proc0_init();
 	mutex_init();
@@ -126,21 +148,40 @@ void
 platform_reset(void)
 {
 
-#ifndef MT7620
+#if 0
 	__asm __volatile("li	$25, 0xbf000000");
 	__asm __volatile("j	$25");
 #else
-	*((volatile uint32_t *)0xb0000034) = 1;
-	while (1);
+	RESET();
 #endif
+	while (1);
 }
+
+struct cpulaunch {
+        unsigned long   pc;
+        unsigned long   gp;
+        unsigned long   sp;
+        unsigned long   a0;
+        unsigned long   _pad[3];
+        unsigned long   flags;
+};
+
+#define CPULAUNCH       0x00000f00
+#define LOG2CPULAUNCH   5
+#define LAUNCH_FREADY   1
+#define LAUNCH_FGO      2
+#define LAUNCH_FGONE    4
+
+void mpwait(void);
+
+static void mips_mt_park_aps(void);
 
 void
 platform_start(__register_t a0 __unused, __register_t a1 __unused, 
     __register_t a2 __unused, __register_t a3 __unused)
 {
 	vm_offset_t kernend;
-	uint64_t platform_counter_freq = PLATFORM_COUNTER_FREQ;
+//	uint64_t platform_counter_freq = PLATFORM_COUNTER_FREQ;
 	int i;
 	int argc = a0;
 	char **argv = (char **)MIPS_PHYS_TO_KSEG0(a1);
@@ -155,9 +196,12 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	/* Initialize pcpu stuff */
 	mips_pcpu0_init();
 
+	//mips_timer_early_init(440000000);
+	mips_timer_init_params(440000000, 0);
+
 	/* initialize console so that we have printf */
 	boothowto |= (RB_SERIAL | RB_MULTIPLE);	/* Use multiple consoles */
-	boothowto |= (RB_VERBOSE);
+	boothowto |= (RB_VERBOSE); // | (RB_SINGLE);
 	cninit();
 
 	init_static_kenv(boot1_env, sizeof(boot1_env));
@@ -196,7 +240,49 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 			kern_setenv(n, arg);
 	}
 
+#ifdef SMP
+	CPU_ZERO(&platform_active_cpus);
+	CPU_SET(0, &platform_active_cpus);
+#endif
+	if (1)
+	mips_mt_park_aps();
+
+	mips_cm_probe();
 
 	mips_init();
-	mips_timer_init_params(platform_counter_freq, 2);
+
+	mips_timer_init_params(880000000, 0);
+
+	gic_init();
 }
+
+static void
+mips_mt_park_aps(void)
+{
+#ifdef SMP
+	volatile struct cpulaunch *launch = (struct cpulaunch *)
+					MIPS_PHYS_TO_KSEG0(CPULAUNCH);
+	int i = 0, j, parked = 0;
+
+	printf("Parking APs... ");
+
+	for (i = 1; i < 2; i++) {
+		launch += 1;
+		j = 0;
+		launch->pc = (unsigned long) mpwait;
+		__asm __volatile ("sync");
+		mips_barrier();
+		launch->flags |= LAUNCH_FGO;
+		__asm __volatile ("sync");
+		mips_barrier();
+		while ((launch->flags & LAUNCH_FGONE) == 0 && j < 10000)
+			j++;
+		if (j < 10000) parked++;
+		__asm __volatile ("sync");
+		mips_barrier();
+	}
+
+	printf("done, parked %d APs out of 3\n", parked);
+#endif
+}
+

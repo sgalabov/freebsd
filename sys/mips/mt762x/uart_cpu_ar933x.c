@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2006 Wojciech A. Koszek <wkoszek@FreeBSD.org>
+ * Copyright (c) 2012 Adrian Chadd <adrian@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -23,15 +23,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
- */
-/*
- * Skeleton of this file was based on respective code for ARM
- * code written by Olivier Houchard.
- */
-/*
- * XXXMIPS: This file is hacked from arm/... . XXXMIPS here means this file is
- * experimental and was written for MIPS32 port.
  */
 #include "opt_uart.h"
 
@@ -41,34 +32,38 @@ __FBSDID("$FreeBSD$");
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/bus.h>
-#include <sys/cons.h>
 
 #include <machine/bus.h>
 
 #include <dev/uart/uart.h>
 #include <dev/uart/uart_cpu.h>
 
-#include <mips/rt305x/rt305xreg.h>
+#include <mips/atheros/ar71xxreg.h>
+#include <mips/atheros/ar71xx_cpudef.h>
 
-extern struct uart_class uart_rt305x_uart_class;
+#include <mips/atheros/uart_dev_ar933x.h>
+
 bus_space_tag_t uart_bus_space_io;
 bus_space_tag_t uart_bus_space_mem;
 
 int
 uart_cpu_eqres(struct uart_bas *b1, struct uart_bas *b2)
 {
-
 	return ((b1->bsh == b2->bsh && b1->bst == b2->bst) ? 1 : 0);
 }
 
 int
 uart_cpu_getdev(int devtype, struct uart_devinfo *di)
 {
-	di->ops = uart_getops(&uart_rt305x_uart_class);
+	uint64_t freq;
+
+	freq = 50000000;
+
+	di->ops = uart_getops(&uart_ar933x_class);
 	di->bas.chan = 0;
 	di->bas.bst = mips_bus_space_generic;
-	di->bas.regshft = 2;
-	di->bas.rclk = SYSTEM_CLOCK;
+	di->bas.regshft = 0;	/* We'll do "correct" dword addressing here */
+	di->bas.rclk = freq;
 	di->baudrate = 115200;
 	di->databits = 8;
 	di->stopbits = 1;
@@ -77,10 +72,6 @@ uart_cpu_getdev(int devtype, struct uart_devinfo *di)
 
 	uart_bus_space_io = NULL;
 	uart_bus_space_mem = mips_bus_space_generic;
-#ifdef RT305X_USE_UART
-	di->bas.bsh = MIPS_PHYS_TO_KSEG1(UART_BASE);
-#else
-	di->bas.bsh = MIPS_PHYS_TO_KSEG1(UARTLITE_BASE);
-#endif
+	di->bas.bsh = 0xbe000C00; //MIPS_PHYS_TO_KSEG1(AR71XX_UART_ADDR);
 	return (0);
 }
