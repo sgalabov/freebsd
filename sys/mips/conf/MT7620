@@ -101,7 +101,7 @@ device		md
 device		random
 device		loop
 # RT3050F, RT3052F have only pseudo PHYs, so mii not required
-#device		rt
+device		rt
 
 device		ether
 device		miibus
