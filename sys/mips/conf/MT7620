@@ -103,6 +103,9 @@ device		loop
 # RT3050F, RT3052F have only pseudo PHYs, so mii not required
 device		rt
 
+device		spibus
+device		mx25l
+
 device		ether
 device		miibus
 device 		bpf			# Berkeley packet filter

@@ -241,10 +241,10 @@ obio_attach(device_t dev)
 	obio_add_res_child(dev, "i2s", 0,
 	    I2S_BASE, (I2S_END - I2S_BASE  + 1),
 	    IC_I2S);
+#endif
 	obio_add_res_child(dev, "spi", 0, 
 	    SPI_BASE, (SPI_END - SPI_BASE  + 1),
 	    -1);
-#endif
 	obio_add_res_child(dev, "uart", 1,
 	    UARTLITE_BASE, (UARTLITE_END - UARTLITE_BASE + 1),
 	    IC_UARTLITE);
