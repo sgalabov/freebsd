@@ -438,7 +438,39 @@
 */
 #define GDMACT0_SWMODE			(1<<0)
 
+/* SPI controller interface */
+ 
+#define	RT305X_SPISTAT		0x00
+/* SPIBUSY is alias for SPIBUSY, because SPISTAT have only BUSY bit*/
+#define	RT305X_SPIBUSY		RT305X_SPISTAT
+ 
+#define	RT305X_SPICFG		0x10
+#define		MSBFIRST		(1<<8)
+#define		SPICLKPOL		(1<<6)
+#define		CAPT_ON_CLK_FALL	(1<<5)
+#define		TX_ON_CLK_FALL		(1<<4)
+#define		HIZSPI			(1<<3) /* Set SPI pins to Tri-state */
+#define		SPI_CLK_SHIFT		0	/* SPI clock divide control */
+#define		SPI_CLK_MASK		0x00000007
+#define		SPI_CLK_DIV2		0
+#define		SPI_CLK_DIV4		1
+#define		SPI_CLK_DIV8		2
+#define		SPI_CLK_DIV16		3
+#define		SPI_CLK_DIV32		4
+#define		SPI_CLK_DIV64		5
+#define		SPI_CLK_DIV128		6
+#define		SPI_CLK_DISABLED	7
+ 
+#define	RT305X_SPICTL		0x14
+#define		HIZSMOSI		(1<<3)
+#define		START_WRITE		(1<<2)
+#define		START_READ		(1<<1)
+#define		CS_HIGH			(1<<0)
 
+#define	RT305X_SPIDATA		0x20
+#define		SPIDATA_MASK		0x000000ff
 
+#define	RT305X_SPI_WRITE	1
+#define	RT305X_SPI_READ		0
 
 #endif /* _RT305XREG_H_ */
