@@ -221,10 +221,10 @@ obio_attach(device_t dev)
 	obio_add_res_child(dev, "pcm", 	0, 
 	    PCM_BASE, (PCM_END - PCM_BASE  + 1),
 	    IC_PCM);
+#endif
 	obio_add_res_child(dev, "uart", 0, 
 	    UART_BASE, (UART_END - UART_BASE + 1),
 	    IC_UART);
-#endif
 	obio_add_res_child(dev, "gpio", 0, 
 	    PIO_BASE, (PIO_END - PIO_BASE  + 1),
 	    IC_PIO);
@@ -251,9 +251,15 @@ obio_attach(device_t dev)
 	obio_add_res_child(dev, "cfi", 	0,
 	    FLASH_BASE, (FLASH_END - FLASH_BASE  + 1),
 	    -1);
+#ifndef MT7620
 	obio_add_res_child(dev, "dotg", 0,
 	    USB_OTG_BASE, (USB_OTG_END - USB_OTG_BASE  + 1),
 	    IC_OTG);
+#else
+	obio_add_res_child(dev, "ehci", 0,
+	    USB_OTG_BASE, (USB_OTG_END - USB_OTG_BASE  + 1),
+	    IC_OTG);
+#endif
 	obio_add_res_child(dev, "switch", 0,
 	    ETHSW_BASE, (ETHSW_END - ETHSW_BASE  + 1),
 	    IC_ETHSW);

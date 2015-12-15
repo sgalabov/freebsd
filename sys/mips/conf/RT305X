@@ -33,6 +33,8 @@ hints		"RT305X.hints"		#Default places to look for devices.
 
 #makeoptions	DEBUG=-g		#Build kernel with gdb(1) debug symbols
 
+options		RT3052F
+
 # Debugging for use in -current
 #options 	DEADLKRES		#Enable the deadlock resolver
 #options 	INVARIANTS		#Enable calls of extra sanity checking

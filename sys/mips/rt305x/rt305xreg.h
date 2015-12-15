@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2015 Stanislav Galabov.
  * Copyright (c) 2010 Aleksandr Rybalko.
  * All rights reserved.
  *
@@ -29,12 +30,7 @@
 #ifndef _RT305XREG_H_
 #define _RT305XREG_H_
 
-/* XXX: must move to config */
-#define RT305X		1
-#define RT305XF		1
-#define RT3052F		1
-#define __U_BOOT__	1
-/* XXX: must move to config */
+#include "opt_rt305x.h"
 
 #ifdef RT3052F
 #define PLATFORM_COUNTER_FREQ	(384 * 1000 * 1000)
@@ -42,12 +38,16 @@
 #ifdef RT3050F
 #define PLATFORM_COUNTER_FREQ	(320 * 1000 * 1000)
 #endif
+#ifdef MT7620
+#define PLATFORM_COUNTER_FREQ	(580 * 1000 * 1000)
+#endif
 #ifndef PLATFORM_COUNTER_FREQ
-#error "Nor RT3052F nor RT3050F defined"
+#error "No platform selected"
 #endif
 
-#define SYSTEM_CLOCK	(PLATFORM_COUNTER_FREQ/3)
+#ifndef MT7620
 
+#define SYSTEM_CLOCK	(PLATFORM_COUNTER_FREQ/3)
 
 #define SDRAM_BASE 	0x00000000
 #define SDRAM_END 	0x03FFFFFF
@@ -98,7 +98,70 @@
 #define OBIO_MEM_START	OBIO_MEM_BASE
 #define OBIO_MEM_END	FLASH_END
 
+#else /* MT7620 */
 
+#define SYSTEM_CLOCK	(40 * 1000 * 1000)
+
+#define SDRAM_BASE	0x00000000
+#define SDRAM_END	0x0FFFFFFF
+
+#define SYSCTL_BASE	0x10000000
+#define SYSCTL_END	0x100000FF
+#define TIMER_BASE	0x10000100
+#define TIMER_END	0x100001FF
+#define INTCTL_BASE	0x10000200
+#define INTCTL_END	0x100002FF
+#define MEMCTRL_BASE	0x10000300
+#define MEMCTRL_END	0x100003FF /* SDRAM & Flash/SRAM */
+#define PCM_BASE	0x10002000
+#define PCM_END		0x100027FF
+#define UART_BASE	0x10000500
+#define UART_END	0x100005FF
+#define PIO_BASE	0x10000600
+#define PIO_END		0x100006FF
+#define GDMA_BASE	0x10002800
+#define GDMA_END	0x10002FFF /* Generic DMA */
+#define NANDFC_BASE	0x10000800
+#define NANDFC_END	0x100008FF /* NAND Flash Controller */
+#define I2C_BASE	0x10000900
+#define I2C_END		0x100009FF
+#define I2S_BASE	0x10000A00
+#define I2S_END		0x10000AFF
+#define SPI_BASE	0x10000B00
+#define SPI_END		0x10000BFF
+#define UARTLITE_BASE	0x10000C00
+#define UARTLITE_END	0x10000CFF
+
+#define FRENG_BASE	0x10100000
+#define FRENG_END	0x1010FFFF /* Frame Engine */
+#define ETHSW_BASE	0x10110000
+#define ETHSW_END	0x10117FFF /* Ethernet Switch */
+#define ROM_BASE	0x10118000
+#define ROM_END		0x1011FFFF
+#define WLAN_BASE	0x10180000
+#define WLAN_END	0x101BFFFF /* 802.11n MAC/BBP */
+#define USB_OTG_BASE	0x101C0000
+#define USB_OTG_END	0x101FFFFF
+#define PCIE_BASE	0x10140000
+#define PCIE_END	0x1017FFFF
+#define SDHC_BASE	0x10130000
+#define SDHC_END	0x10133FFF
+
+#define PCIE_IO_BASE	0x10160000
+#define PCIE_IO_END	0x1016FFFF
+#define PCIE_MEM_BASE	0x20000000
+#define PCIE_MEM_END	0x2FFFFFFF
+
+// TODO: fix below mappings?
+#define EMEM_BASE	0x1B000000
+#define EMEM_END	0x1BFFFFFF /* External SRAM/Flash */
+#define FLASH_BASE	0x1F000000
+#define FLASH_END	0x1FFFFFFF /* Flash window */
+
+#define OBIO_MEM_BASE	SYSCTL_BASE
+#define OBIO_MEM_START	OBIO_MEM_BASE
+#define OBIO_MEM_END	FLASH_END
+#endif
 
 /* System Control */
 #define SYSCTL_CHIPID0_3 	0x00 /* 'R''T''3''0' */
@@ -130,6 +193,9 @@
 #define SYSCTL_SYSCFG_SRAM_CS_MODE_BT_COEX	2
 #define SYSCTL_SYSCFG_SDRAM_CLK_DRV		(1<<0) /* 8mA/12mA */
 
+#define SYSCTL_SYSCFG1		0x14
+#define SYSCTL_SYSCFG1_USB0_HOST_MODE		(1 << 10)
+
 #define SYSCTL_TESTSTAT		0x18
 #define SYSCTL_TESTSTAT2	0x1C
 
@@ -143,6 +209,8 @@
 
 #define SYSCTL_CLKCFG1		0x30
 #define SYSCTL_CLKCFG1_PBUS_DIV_CLK_BY2		(1<<30)
+#define SYSCTL_CLKCFG1_UPHY0_CLK_EN		(1<<25)
+#define SYSCTL_CLKCFG1_UPHY1_CLK_EN		(1<<22)
 #define SYSCTL_CLKCFG1_OTG_CLK_EN		(1<<18)
 #define SYSCTL_CLKCFG1_I2S_CLK_EN		(1<<15)
 #define SYSCTL_CLKCFG1_I2S_CLK_SEL_EXT		(1<<14)
@@ -155,7 +223,12 @@
 
 #define SYSCTL_RSTCTRL		0x34
 #define SYSCTL_RSTCTRL_ETHSW		(1<<23)
+#ifndef MT7620
 #define SYSCTL_RSTCTRL_OTG		(1<<22)
+#else
+#define SYSCTL_RSTCTRL_UPHY0		(1<<25)
+#define SYSCTL_RSTCTRL_UPHY1		(1<<22)
+#endif
 #define SYSCTL_RSTCTRL_FRENG		(1<<21)
 #define SYSCTL_RSTCTRL_WLAN		(1<<20)
 #define SYSCTL_RSTCTRL_UARTL		(1<<19)
@@ -249,7 +322,10 @@
 
 #define IC_OTG		18
 #define IC_ETHSW	17
+#define IC_R2P		15
+#define IC_SDHC		14
 #define IC_UARTLITE	12
+#define IC_SPI		11
 #define IC_I2S		10
 #define IC_PERFC	9
 #define IC_NAND		8

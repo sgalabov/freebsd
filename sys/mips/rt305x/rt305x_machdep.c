@@ -87,11 +87,17 @@ static void
 mips_init(void)
 {
 	int i;
+	char *memsize;
 
 	printf("entry: mips_init()\n");
 
+	if ((memsize = kern_getenv("memsize")) != NULL)
+		realmem = btoc(strtol(memsize, NULL, 0) << 20);
+	else
+		realmem = btoc(32 << 20);
+	
+
 	bootverbose = 1;
-	realmem = btoc(32 << 20);
 
 	for (i = 0; i < 10; i++) {
 		phys_avail[i] = 0;
@@ -120,8 +126,13 @@ void
 platform_reset(void)
 {
 
+#ifndef MT7620
 	__asm __volatile("li	$25, 0xbf000000");
 	__asm __volatile("j	$25");
+#else
+	*((volatile uint32_t *)0xb0000034) = 1;
+	while (1);
+#endif
 }
 
 void
