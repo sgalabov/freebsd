@@ -1,0 +1,26 @@
+# $FreeBSD$
+
+# RT305X on-board devices
+mips/mt762x/rt305x_machdep.c	standard
+mips/mt762x/obio.c		standard
+mips/mt762x/rt305x_sysctl.c	standard
+mips/mt762x/rt305x_ic.c		standard
+mips/mt762x/rt305x_gpio.c	optional gpio
+#mips/mt762x/uart_bus_rt305x.c	optional uart
+#mips/mt762x/uart_cpu_rt305x.c	optional uart
+#mips/mt762x/uart_dev_rt305x.c	optional uart
+#mips/mt762x/uart_bus_ar933x.c	optional uart
+#mips/mt762x/uart_cpu_ar933x.c	optional uart
+#mips/mt762x/uart_dev_ar933x.c	optional uart
+#mips/mt762x/console.c		standard
+mips/mt762x/uart_bus_ralink.c	optional uart
+mips/mt762x/uart_cpu_ralink.c	optional uart
+mips/mt762x/mips_cm.c		standard
+mips/mt762x/mpwait.S		standard
+mips/mt762x/gic.c		standard
+#mips/mt762x/rt305x_dotg.c	optional usb
+mips/mips/intr_machdep.c	standard
+mips/mips/tick.c		standard
+dev/rt/if_rt.c			optional rt
+mips/mt762x/mt762x_pci.c	optional pci
+mips/mt762x/mt762x_pci_bus_space.c optional pci
