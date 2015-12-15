@@ -1,0 +1,65 @@
+# MT7621 -- Kernel configuration file for FreeBSD/mips for Ralink MT7621 systems
+#
+# For more information on this file, please read the handbook section on
+# Kernel Configuration Files:
+#
+# http://www.FreeBSD.org/doc/en_US.ISO8859-1/books/handbook/kernelconfig-config.html
+#
+# The handbook is also available locally in /usr/share/doc/handbook
+# if you've installed the doc distribution, otherwise always see the
+# FreeBSD World Wide Web server (http://www.FreeBSD.org/) for the
+# latest information.
+#
+# An exhaustive list of options and more detailed explanations of the
+# device lines is also present in the ../../conf/NOTES and NOTES files. 
+# If you are in doubt as to the purpose or necessity of a line, check first 
+# in NOTES.
+#
+# $FreeBSD$
+
+ident		MT7621
+
+machine		mips mipsel
+makeoptions	MIPS_LITTLE_ENDIAN=defined
+makeoptions	KERNLOADADDR=0x80100000
+makeoptions	ARCH_FLAGS=-march=mips32r2
+
+# Don't build any modules yet.
+makeoptions	MODULES_OVERRIDE=""
+makeoptions	MT7621
+
+include		"../mt762x/std.mt7621"
+
+hints		"MT7621.hints"		#Default places to look for devices.
+
+makeoptions	DEBUG=-g		#Build kernel with gdb(1) debug symbols
+
+options		SMP
+
+# Debugging for use in -current
+options 	DDB
+options 	KDB
+
+options 	SCHED_ULE
+options 	INET			#InterNETworking
+
+options 	FFS			#Berkeley Fast Filesystem
+
+options		GEOM_UNCOMPRESS
+options         MD_ROOT
+options		ROOTDEVNAME=\"ufs:/dev/ada0s1\"
+
+device		md
+
+device		random
+device		loop
+device		uart
+
+device		ether
+#device		mii
+
+device		pci
+device		ahci
+device		scbus
+device		ada
+device		pass
