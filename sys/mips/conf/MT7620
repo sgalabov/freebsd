@@ -129,6 +129,7 @@ nodevice	uart_ns8250
 
 device		usb
 device		ehci
+#device		ohci
 #device		dwcotg			# DWC like USB OTG Controller driver
 #device		u3g
 #device		umodem

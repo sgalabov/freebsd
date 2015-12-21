@@ -59,29 +59,29 @@ __FBSDID("$FreeBSD$");
 #include <dev/usb/usb_controller.h>
 #include <dev/usb/usb_bus.h>
 
-#include <dev/usb/controller/ehci.h>
+#include <dev/usb/controller/ohci.h>
 
 #include <mips/rt305x/rt305xreg.h>
 #include <mips/rt305x/rt305x_sysctlvar.h>
 
-#define EHCI_HC_DEVSTR	"Ralink integrated USB 2.0 controller"
+#define OHCI_HC_DEVSTR	"Ralink integrated USB controller"
 
-static device_probe_t ehci_obio_probe;
-static device_attach_t ehci_obio_attach;
-static device_detach_t ehci_obio_detach;
+static device_probe_t ohci_obio_probe;
+static device_attach_t ohci_obio_attach;
+static device_detach_t ohci_obio_detach;
 
 static int
-ehci_obio_probe(device_t self)
+ohci_obio_probe(device_t self)
 {
-	device_set_desc(self, EHCI_HC_DEVSTR);
+	device_set_desc(self, OHCI_HC_DEVSTR);
 
 	return (BUS_PROBE_DEFAULT);
 }
 
 static int
-ehci_obio_attach(device_t self)
+ohci_obio_attach(device_t self)
 {
-	ehci_softc_t *sc = device_get_softc(self);
+	ohci_softc_t *sc = device_get_softc(self);
 	uint32_t reg;
 	int err;
 	int rid;
@@ -106,12 +106,12 @@ ehci_obio_attach(device_t self)
 	/* initialise some bus fields */
 	sc->sc_bus.parent = self;
 	sc->sc_bus.devices = sc->sc_devices;
-	sc->sc_bus.devices_max = EHCI_MAX_DEVICES;
+	sc->sc_bus.devices_max = OHCI_MAX_DEVICES;
 	sc->sc_bus.dma_bits = 32;
 
 	/* get all DMA memory */
 	if (usb_bus_mem_alloc_all(&sc->sc_bus,
-	    USB_GET_DMA_TAG(self), &ehci_iterate_hw_softc)) {
+	    USB_GET_DMA_TAG(self), &ohci_iterate_hw_softc)) {
 		printf("No mem\n");
 		return (ENOMEM);
 	}
@@ -141,19 +141,19 @@ ehci_obio_attach(device_t self)
 		goto error;
 	}
 	device_set_ivars(sc->sc_bus.bdev, &sc->sc_bus);
-	device_set_desc(sc->sc_bus.bdev, EHCI_HC_DEVSTR);
+	device_set_desc(sc->sc_bus.bdev, OHCI_HC_DEVSTR);
 
 	sprintf(sc->sc_vendor, "Ralink");
 
 	err = bus_setup_intr(self, sc->sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-		NULL, (driver_intr_t *)ehci_interrupt, sc, &sc->sc_intr_hdl);
+		NULL, (driver_intr_t *)ohci_interrupt, sc, &sc->sc_intr_hdl);
 	if (err) {
 		device_printf(self, "Could not setup irq, %d\n", err);
 		sc->sc_intr_hdl = NULL;
 		goto error;
 	}
 
-	err = ehci_init(sc);
+	err = ohci_init(sc);
 	if (!err) {
 		err = device_probe_and_attach(sc->sc_bus.bdev);
 	}
@@ -164,14 +164,14 @@ ehci_obio_attach(device_t self)
 	return (0);
 
 error:
-	ehci_obio_detach(self);
+	ohci_obio_detach(self);
 	return (ENXIO);
 }
 
 static int
-ehci_obio_detach(device_t self)
+ohci_obio_detach(device_t self)
 {
-	ehci_softc_t *sc = device_get_softc(self);
+	ohci_softc_t *sc = device_get_softc(self);
 	device_t bdev;
 	int err;
 
@@ -185,11 +185,11 @@ ehci_obio_detach(device_t self)
 
 	if (sc->sc_irq_res && sc->sc_intr_hdl) {
 		/*
-		 * only call ehci_detach() after ehci_init()
+		 * only call ohci_detach() after ohci_init()
 		 */
-		ehci_detach(sc);
+		ohci_detach(sc);
 
-		/* Stop EHCI clock */
+		/* Stop OHCI clock */
 		rt305x_sysctl_set(SYSCTL_CLKCFG1, 
 		  rt305x_sysctl_get(SYSCTL_CLKCFG1) & 
 		  ~(SYSCTL_CLKCFG1_UPHY0_CLK_EN | SYSCTL_CLKCFG1_UPHY1_CLK_EN));
@@ -210,16 +210,16 @@ ehci_obio_detach(device_t self)
 		    sc->sc_io_res);
 		sc->sc_io_res = NULL;
 	}
-	usb_bus_mem_free_all(&sc->sc_bus, &ehci_iterate_hw_softc);
+	usb_bus_mem_free_all(&sc->sc_bus, &ohci_iterate_hw_softc);
 
 	return (0);
 }
 
-static device_method_t ehci_obio_methods[] = {
+static device_method_t ohci_obio_methods[] = {
 	/* Device interface */
-	DEVMETHOD(device_probe, ehci_obio_probe),
-	DEVMETHOD(device_attach, ehci_obio_attach),
-	DEVMETHOD(device_detach, ehci_obio_detach),
+	DEVMETHOD(device_probe, ohci_obio_probe),
+	DEVMETHOD(device_attach, ohci_obio_attach),
+	DEVMETHOD(device_detach, ohci_obio_detach),
 	DEVMETHOD(device_suspend, bus_generic_suspend),
 	DEVMETHOD(device_resume, bus_generic_resume),
 	DEVMETHOD(device_shutdown, bus_generic_shutdown),
@@ -227,12 +227,12 @@ static device_method_t ehci_obio_methods[] = {
 	DEVMETHOD_END
 };
 
-static driver_t ehci_obio_driver = {
-	.name = "ehci",
-	.methods = ehci_obio_methods,
-	.size = sizeof(ehci_softc_t),
+static driver_t ohci_obio_driver = {
+	.name = "ohci",
+	.methods = ohci_obio_methods,
+	.size = sizeof(ohci_softc_t),
 };
 
-static devclass_t ehci_obio_devclass;
+static devclass_t ohci_obio_devclass;
 
-DRIVER_MODULE(ehci, obio, ehci_obio_driver, ehci_obio_devclass, 0, 0);
+DRIVER_MODULE(ohci, obio, ohci_obio_driver, ohci_obio_devclass, 0, 0);

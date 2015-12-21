@@ -259,6 +259,9 @@ obio_attach(device_t dev)
 	obio_add_res_child(dev, "ehci", 0,
 	    USB_OTG_BASE, (USB_OTG_END - USB_OTG_BASE  + 1),
 	    IC_OTG);
+	obio_add_res_child(dev, "ohci", 0,
+	    USB_OHCI_BASE, (USB_OHCI_END - USB_OHCI_BASE + 1),
+	    IC_OTG);
 #endif
 	obio_add_res_child(dev, "switch", 0,
 	    ETHSW_BASE, (ETHSW_END - ETHSW_BASE  + 1),
