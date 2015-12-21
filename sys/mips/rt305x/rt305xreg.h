@@ -271,6 +271,9 @@
 #define SYSCTL_MEMO0		0x68
 #define SYSCTL_MEMO1		0x6C
 
+#define SYSCTL_PPLL_CFG1	0x9C
+#define SYSCTL_PPLL_DRV		0xA0
+
 /* Timer */
 #define TIMER_TMRSTAT		0x00
 #define TIMER_TMRSTAT_TMR1RST	(1<<5)

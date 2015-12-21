@@ -4,6 +4,10 @@ hint.obio.0.at="nexus0"
 hint.obio.0.maddr=0x10000000
 hint.obio.0.msize=0x10000000
 
+hint.pcib.0.at="nexus0"
+hint.pcib.0.maddr=0x10140000
+hint.pcib.0.msize=0x30000
+
 hint.mx25l.0.at="spibus0"
 
 #hint.nvram.0.sig=0xe5e60a74

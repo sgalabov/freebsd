@@ -145,4 +145,4 @@ options 	SCSI_DELAY=1000		# Delay (in ms) before probing SCSI
 #options 	USB_DEBUG
 #options 	USB_REQ_DEBUG
 
-
+device		pci
