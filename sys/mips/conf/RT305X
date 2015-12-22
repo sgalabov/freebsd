@@ -34,6 +34,7 @@ hints		"RT305X.hints"		#Default places to look for devices.
 #makeoptions	DEBUG=-g		#Build kernel with gdb(1) debug symbols
 
 options		RT3052F
+options		RT305X_UBOOT
 
 # Debugging for use in -current
 #options 	DEADLKRES		#Enable the deadlock resolver

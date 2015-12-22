@@ -92,7 +92,10 @@ ohci_obio_attach(device_t self)
 	rt305x_sysctl_set(SYSCTL_SYSCFG1, reg);
 
 	reg = rt305x_sysctl_get(SYSCTL_CLKCFG1);
-	reg |= SYSCTL_CLKCFG1_UPHY0_CLK_EN | SYSCTL_CLKCFG1_UPHY1_CLK_EN;
+	reg |= SYSCTL_CLKCFG1_UPHY0_CLK_EN;
+#ifdef MT7620
+	reg |= SYSCTL_CLKCFG1_UPHY1_CLK_EN;
+#endif
 	rt305x_sysctl_set(SYSCTL_CLKCFG1, reg);
 
 	reg = rt305x_sysctl_get(SYSCTL_RSTCTRL);
@@ -192,7 +195,11 @@ ohci_obio_detach(device_t self)
 		/* Stop OHCI clock */
 		rt305x_sysctl_set(SYSCTL_CLKCFG1, 
 		  rt305x_sysctl_get(SYSCTL_CLKCFG1) & 
-		  ~(SYSCTL_CLKCFG1_UPHY0_CLK_EN | SYSCTL_CLKCFG1_UPHY1_CLK_EN));
+		  ~(SYSCTL_CLKCFG1_UPHY0_CLK_EN
+#ifdef MT7620
+		    | SYSCTL_CLKCFG1_UPHY1_CLK_EN
+#endif
+		));
 
 		err = bus_teardown_intr(self, sc->sc_irq_res, sc->sc_intr_hdl);
 		if (err)

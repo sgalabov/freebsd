@@ -71,6 +71,7 @@ __FBSDID("$FreeBSD$");
 #include <machine/vmparam.h>
 
 #include <mips/rt305x/rt305xreg.h>
+#include <mips/rt305x/rt305x_sysctlvar.h>
 
 extern int	*edata;
 extern int	*end;
@@ -126,11 +127,11 @@ void
 platform_reset(void)
 {
 
-#ifndef MT7620
+#if !defined(MT7620) && !defined(RT5350)
 	__asm __volatile("li	$25, 0xbf000000");
 	__asm __volatile("j	$25");
 #else
-	*((volatile uint32_t *)0xb0000034) = 1;
+	rt305x_sysctl_set(SYSCTL_RSTCTRL, 1);
 	while (1);
 #endif
 }
@@ -154,6 +155,8 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 
 	/* Initialize pcpu stuff */
 	mips_pcpu0_init();
+
+	mips_timer_early_init(platform_counter_freq / 2);
 
 	/* initialize console so that we have printf */
 	boothowto |= (RB_SERIAL | RB_MULTIPLE);	/* Use multiple consoles */

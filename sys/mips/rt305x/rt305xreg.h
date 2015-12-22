@@ -41,6 +41,9 @@
 #ifdef MT7620
 #define PLATFORM_COUNTER_FREQ	(580 * 1000 * 1000)
 #endif
+#ifdef RT5350
+#define PLATFORM_COUNTER_FREQ	(360 * 1000 * 1000)
+#endif
 #ifndef PLATFORM_COUNTER_FREQ
 #error "No platform selected"
 #endif
@@ -60,16 +63,26 @@
 #define INTCTL_END 	0x100002FF
 #define MEMCTRL_BASE	0x10000300
 #define MEMCTRL_END 	0x100003FF /* SDRAM & Flash/SRAM */
+#ifndef RT5350
 #define PCM_BASE 	0x10000400
 #define PCM_END 	0x100004FF
+#else
+#define PCM_BASE	0x10002000
+#define PCM_END		0x100027FF
+#endif
 #define UART_BASE 	0x10000500
 #define UART_END 	0x100005FF
 #define PIO_BASE 	0x10000600
 #define PIO_END 	0x100006FF
+#ifndef RT5350
 #define GDMA_BASE 	0x10000700
 #define GDMA_END 	0x100007FF /* Generic DMA */
 #define NANDFC_BASE 	0x10000800
 #define NANDFC_END 	0x100008FF /* NAND Flash Controller */
+#else
+#define GDMA_BASE	0x10002800
+#define GDMA_END	0x10002FFF
+#endif
 #define I2C_BASE 	0x10000900
 #define I2C_END 	0x100009FF
 #define I2S_BASE 	0x10000A00
@@ -87,16 +100,33 @@
 #define ROM_END 	0x10119FFF
 #define WLAN_BASE 	0x10180000
 #define WLAN_END 	0x101BFFFF /* 802.11n MAC/BBP */
+#ifndef RT5350
 #define USB_OTG_BASE	0x101C0000
 #define USB_OTG_END 	0x101FFFFF
+#else
+#define USB_OTG_BASE	0x101C0000
+#define USB_OTG_END	0x101C0FFF
+#define USB_OHCI_BASE	0x101C1000
+#define USB_OHCI_END	0x101C1FFF
+#endif
 #define EMEM_BASE 	0x1B000000
 #define EMEM_END 	0x1BFFFFFF /* External SRAM/Flash */
+#ifdef RT5350
+#define BOOT_ROM_BASE	0x1C000000
+#define BOOT_ROM_END	0x1C003FFF
+#endif
+#ifndef RT5350
 #define FLASH_BASE 	0x1F000000
 #define FLASH_END 	0x1FFFFFFF /* Flash window */
+#endif
 
 #define OBIO_MEM_BASE	SYSCTL_BASE
 #define OBIO_MEM_START	OBIO_MEM_BASE
+#ifndef RT5350
 #define OBIO_MEM_END	FLASH_END
+#else
+#define OBIO_MEM_END	BOOT_ROM_END
+#endif
 
 #else /* MT7620 */
 
@@ -166,9 +196,14 @@
 #endif
 
 /* System Control */
-#define SYSCTL_CHIPID0_3 	0x00 /* 'R''T''3''0' */
-#define SYSCTL_CHIPID4_7 	0x04 /* '5''2'' '' ' */
+#define SYSCTL_CHIPID0_3 	0x00
+#define SYSCTL_CHIPID4_7 	0x04
+#ifdef RT5350
+#define SYSCTL_REVID		0x0C
+#endif
+
 #define SYSCTL_SYSCFG		0x10
+#if !defined(RT5350) && !defined(MT7620)
 #define SYSCTL_SYSCFG_INIC_EE_SDRAM		(1<<29)
 #define SYSCTL_SYSCFG_INIC_8MB_SDRAM		(1<<28) 
 #define SYSCTL_SYSCFG_GE0_MODE_MASK		0x03000000
@@ -194,6 +229,15 @@
 #define SYSCTL_SYSCFG_SRAM_CS_MODE_WDOG_RST	1
 #define SYSCTL_SYSCFG_SRAM_CS_MODE_BT_COEX	2
 #define SYSCTL_SYSCFG_SDRAM_CLK_DRV		(1<<0) /* 8mA/12mA */
+#endif
+#ifdef RT5350
+#define SYSCTL1_SYSCFG_PULL_EN			(1<<26)
+#define SYSCTL1_SYSCFG_SDR_PAD_DRV_MASK		0x0700000
+#define SYSCTL1_SYSCFG_SDR_PAD_DRV_SHIFT	20
+#define SYSCTL1_SYSCFG_SDR_PAD_DRV_0		0
+#define SYSCTL1_SYSCFG_SDR_PAD_DRV_1		1
+#define SYSCTL1_SYSCFG_SDR_PAD_DRV_2		2
+#endif
 
 #define SYSCTL_SYSCFG1		0x14
 #define SYSCTL_SYSCFG1_USB0_HOST_MODE		(1 << 10)
@@ -210,6 +254,7 @@
 #define SYSCTL_CLKCFG0_SDRAM_CLK_SKEW_3NS_DELAY		3
 
 #define SYSCTL_CLKCFG1		0x30
+#if !defined(RT5350)
 #define SYSCTL_CLKCFG1_PBUS_DIV_CLK_BY2		(1<<30)
 #define SYSCTL_CLKCFG1_UPHY0_CLK_EN		(1<<25)
 #define SYSCTL_CLKCFG1_UPHY1_CLK_EN		(1<<22)
@@ -222,10 +267,16 @@
 #define SYSCTL_CLKCFG1_PCM_CLK_SEL_EXT 		(1<<6)
 #define SYSCTL_CLKCFG1_PCM_CLK_DIV_MASK 		0x0000003f
 #define SYSCTL_CLKCFG1_PCM_CLK_DIV_SHIFT 	0
+#endif
+#ifdef RT5350
+#define SYSCTL_CLKCFG1_SYSTICK_EN		(1<<29)
+#define SYSCTL_CLKCFG1_PDMA_CSR_CLK_GATE_BYP	(1<<23)
+#define SYSCTL_CLKCFG1_UPHY0_CLK_EN		(1<<18)
+#endif
 
 #define SYSCTL_RSTCTRL		0x34
 #define SYSCTL_RSTCTRL_ETHSW		(1<<23)
-#ifndef MT7620
+#if !defined(MT7620) && !defined(RT5350)
 #define SYSCTL_RSTCTRL_OTG		(1<<22)
 #else
 #define SYSCTL_RSTCTRL_UPHY0		(1<<25)

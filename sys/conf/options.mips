@@ -127,6 +127,7 @@ MT7620				opt_rt305x.h
 RT5350				opt_rt305x.h
 RT305XF				opt_rt305x.h
 RT3052F				opt_rt305x.h
+RT3050F				opt_rt305x.h
 RT305X				opt_rt305x.h
 RT305X_UBOOT			opt_rt305x.h
 RT305X_USE_UART			opt_rt305x.h

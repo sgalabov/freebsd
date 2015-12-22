@@ -248,10 +248,10 @@ obio_attach(device_t dev)
 	obio_add_res_child(dev, "uart", 1,
 	    UARTLITE_BASE, (UARTLITE_END - UARTLITE_BASE + 1),
 	    IC_UARTLITE);
+#if !defined(RT5350) && !defined(MT7620)
 	obio_add_res_child(dev, "cfi", 	0,
 	    FLASH_BASE, (FLASH_END - FLASH_BASE  + 1),
 	    -1);
-#ifndef MT7620
 	obio_add_res_child(dev, "dwcotg", 0,
 	    USB_OTG_BASE, (USB_OTG_END - USB_OTG_BASE  + 1),
 	    IC_OTG);
