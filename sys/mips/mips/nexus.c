@@ -60,6 +60,10 @@ __FBSDID("$FreeBSD$");
 
 #include "opt_platform.h"
 
+#ifdef FDT
+#include <machine/fdt.h>
+#endif
+
 #undef NEXUS_DEBUG
 #ifdef NEXUS_DEBUG
 #define dprintf printf
@@ -378,21 +382,33 @@ static int
 nexus_activate_resource(device_t bus, device_t child, int type, int rid,
     struct resource *r)
 {
-	void *vaddr;
-	vm_paddr_t paddr;
-	vm_size_t psize;
+	int err;
+	bus_addr_t paddr;
+	bus_size_t psize;
+	bus_space_handle_t vaddr;
 
 	/*
 	 * If this is a memory resource, use pmap_mapdev to map it.
 	 */
 	if (type == SYS_RES_MEMORY || type == SYS_RES_IOPORT) {
-		paddr = rman_get_start(r);
-		psize = rman_get_size(r);
-		vaddr = pmap_mapdev(paddr, psize);
-
-		rman_set_virtual(r, vaddr);
+		paddr = (bus_addr_t)rman_get_start(r);
+		psize = (bus_size_t)rman_get_size(r);
+#ifdef FDT
+		err = bus_space_map(fdtbus_bs_tag, paddr, psize, 0, &vaddr);
+		if (err != 0) {
+			return (err);
+		}
+		rman_set_bustag(r, fdtbus_bs_tag);
+#else
+		vaddr = (bus_space_handle_t)pmap_mapdev((vm_offset_t)paddr,
+		    (vm_size_t)psize);
+		if (vaddr == 0) {
+			return (ENOMEM);
+		}
 		rman_set_bustag(r, mips_bus_space_generic);
-		rman_set_bushandle(r, (bus_space_handle_t)(uintptr_t)vaddr);
+#endif
+		rman_set_virtual(r, (void *)vaddr);
+		rman_set_bushandle(r, vaddr);
 	}
 
 	return (rman_activate_resource(r));
