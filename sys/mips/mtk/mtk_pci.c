@@ -89,7 +89,7 @@ mtk_pci_probe(device_t dev)
 
 	device_set_desc(dev, "MTK PCI bridge");
 
-	return (BUS_PROBE_NOWILDCARD);
+	return (BUS_PROBE_DEFAULT);
 }
 
 static int

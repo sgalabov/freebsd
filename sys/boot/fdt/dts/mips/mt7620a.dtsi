@@ -103,7 +103,7 @@
 		};
 
 	        rt {
-			compatible = "ralink,rt5350-eth";
+			compatible = "mtk,mt7620-eth";
 			reg = <0x10100000 0x10000>;
 			status = "okay";
 			interrupts = <5>;
@@ -117,6 +117,14 @@
 			interrupts = <6>;
 			interrupt-parent = <&cpuintc>;
 	        };
+
+		pci {
+			compatible = "mtk,mtk-pci";
+			reg = <0x10140000 0x20000>;
+			interrupts = <4>;
+			interrupt-parent = <&cpuintc>;
+			status = "okay";
+		};
 	};
 };
 

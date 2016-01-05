@@ -86,13 +86,13 @@ device		md
 device		random
 device		loop
 # RT3050F, RT3052F have only pseudo PHYs, so mii not required
-#device		rt
+device		rt
 
 device		ether
-#device 		bpf			# Berkeley packet filter
+device 		bpf			# Berkeley packet filter
 #device		vlan
 #device		lagg
-#device          if_bridge
+device          if_bridge
 #device		uart
 #nodevice	uart_ns8250
 #device 		tun			# Packet tunnel.
