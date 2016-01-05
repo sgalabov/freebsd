@@ -6,8 +6,8 @@
 /include/ "mt7620a.dtsi"
 
 / {
-	compatible = "ralink,rt5350-soc";
-	model = "DIR-600B5";
+	compatible = "mtk,mt7620-soc";
+	model = "ZBT-WE826";
 
 	memory {
 		/* 128MB RAM */
@@ -30,6 +30,10 @@
 					read-only;
 				};
 			};
+		};
+
+		uart0: uart@c00 {
+			current-speed = <115200>;
 		};
 	    };
 	    ehci { status = "okay"; };
