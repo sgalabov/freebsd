@@ -86,6 +86,22 @@
 
 	        };
 
+		ehci {
+			compatible = "mtk,mtk-ehci";
+			reg = <0x101C0000 0x1000>;
+			interrupts = <18>;
+			interrupt-parent = <&intc>;
+			status = "disabled";
+		};
+
+		ohci {
+			compatible = "mtk,mtk-ohci";
+			reg = <0x101C1000 0x1000>;
+			interrupts = <18>;
+			interrupt-parent = <&intc>;
+			status = "disabled";
+		};
+
 	        rt {
 			compatible = "ralink,rt5350-eth";
 			reg = <0x10100000 0x10000>;

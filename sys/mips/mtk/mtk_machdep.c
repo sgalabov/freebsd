@@ -72,6 +72,7 @@ __FBSDID("$FreeBSD$");
 #include <machine/vmparam.h>
 
 #include <mips/mtk/mtk_sysctlreg.h>
+#include <mips/mtk/mtk_chip.h>
 
 #include "opt_platform.h"
 #include "opt_rt305x.h"
@@ -133,16 +134,8 @@ void
 platform_reset(void)
 {
 
-#if !defined(MT7620) && !defined(RT5350)
-	__asm __volatile("li	$25, 0xbf000000");
-	__asm __volatile("j	$25");
-#else
-	mtk_sysctl_set(SYSCTL_RSTCTRL, 1);
-	while (1);
-#endif
+	mtk_chip_reset();
 }
-
-#define DEFAULT_COUNTER_FREQ	1000000000UL
 
 void
 platform_start(__register_t a0 __unused, __register_t a1 __unused, 
@@ -175,11 +168,11 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	if (pclock != -1) {
 		if (OF_getencprop(pclock, "clock-frequency",
 		    &platform_counter_freq, sizeof(platform_counter_freq)) <= 0)
-			platform_counter_freq = DEFAULT_COUNTER_FREQ;
+			platform_counter_freq = mtk_chip_get_cpu_freq();
 		else
 			counter_freq_found = 1;
 	} else {
-		platform_counter_freq = DEFAULT_COUNTER_FREQ;
+		platform_counter_freq = mtk_chip_get_cpu_freq();
 	}
 
 	mips_timer_early_init(platform_counter_freq / 2);
@@ -191,14 +184,12 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 
 	init_static_kenv(boot1_env, sizeof(boot1_env));
 
-	if (!counter_freq_found)
-		printf("CPU clock frequency not defined, using default "
-		    "(%dMHz)\n", platform_counter_freq / 1000000);
-	else
-		printf("CPU clock frequency is %dMHz\n",
-		    platform_counter_freq / 1000000);
+	printf("\nFDT DTB at 0x%08x\n", (uint32_t)dtbp);
 
-	printf("FDT dtbp at 0x%08x\n", (uint32_t)dtbp);
+	printf("Using CPU clock frequency of %dMHz (from %s)\n\n",
+		    platform_counter_freq / 1000000,
+		    counter_freq_found ? "DTB" : "chip");
+
 	printf("U-Boot args (from %d args):\n", argc - 1);
 
 	if (argc == 1)

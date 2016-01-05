@@ -43,6 +43,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/ofw/ofw_bus_subr.h>
 
 #include <mips/mtk/mtk_sysctlreg.h>
+#include <mips/mtk/mtk_chip.h>
 
 
 static int	mtk_sysctl_probe(device_t);
@@ -52,6 +53,7 @@ static int	mtk_sysctl_detach(device_t);
 
 static struct mtk_sysctl_softc *mtk_sysctl_softc = NULL;
 
+#if 0
 static void
 mtk_sysctl_dump_config(device_t dev)
 {
@@ -132,6 +134,7 @@ mtk_sysctl_dump_config(device_t dev)
 
 	return;
 }
+#endif
 
 static int
 mtk_sysctl_probe(device_t dev)
@@ -184,7 +187,7 @@ mtk_sysctl_attach(device_t dev)
 		return (ENXIO);
 	}
 #endif
-	mtk_sysctl_dump_config(dev);
+	mtk_chip_identify();
 
 	return (bus_generic_attach(dev));
 }
@@ -229,7 +232,6 @@ mtk_sysctl_set(uint32_t reg, uint32_t val)
 	bus_write_4(sc->mem_res, reg, val);
 	return;
 }
-
 
 static device_method_t mtk_sysctl_methods[] = {
 	DEVMETHOD(device_probe,			mtk_sysctl_probe),

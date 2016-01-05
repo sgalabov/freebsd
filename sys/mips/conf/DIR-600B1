@@ -1,4 +1,4 @@
-# RT5350 -- Kernel configuration file for FreeBSD/mips for Ralink RT5350 systems
+# RT305X -- Kernel configuration file for FreeBSD/mips for Ralink RT305xF systems
 #
 # For more information on this file, please read the handbook section on
 # Kernel Configuration Files:
@@ -17,9 +17,8 @@
 #
 # $FreeBSD$
 
-include		"../mtk/std.rt5350"
-ident		"DIR-600B5"
-#hints		"DIR-600B5.hints"
+include		"../mtk/chips/rt305x/std.rt305x"
+ident		"DIR-600B1"
 
 # Don't build any modules yet.
 #makeoptions	MODULES_OVERRIDE="wlan_xauth wlan_wep wlan_tkip wlan_acl wlan_amrr wlan_ccmp wlan_rssadapt if_bridge bridgestp msdosfs md ipfw dummynet libalias geom/geom_label ufs usb/uplcom usb/u3g usb/umodem usb/umass usb/ucom cam zlib"
@@ -47,18 +46,16 @@ options 	INET			#InterNETworking
 options 	PSEUDOFS		#Pseudo-filesystem framework
 #options 	_KPOSIX_PRIORITY_SCHEDULING #Posix P1003_1B real-time extensions
 
-#options		BOOTP
-#options		BOOTP_NFSROOT
-#options		BOOTP_NFSV3
-#options		BOOTP_WIRED_TO=rt0
-#options		BOOTP_COMPAT
+#options 	BOOTP
+#options 	BOOTP_NFSROOT
+#options 	BOOTP_NFSV3
+#options 	BOOTP_WIRED_TO=rt0
+#options 	BOOTP_COMPAT
 
 options 	TMPFS			# TMP Memory Filesystem
 
-options		MIPS_INTRNG
-
 options 	FFS			#Berkeley Fast Filesystem
-#options		ROOTDEVNAME=\"nfs:193.178.153.200:/bsdmips\"
+#options 	ROOTDEVNAME=\"nfs:10.0.0.1:/mnt/bsd\"
 
 device		geom_uncompress
 options		GEOM_UNCOMPRESS
@@ -88,10 +85,10 @@ device		md
 device		random
 device		loop
 # RT3050F, RT3052F have only pseudo PHYs, so mii not required
-#device		rt
+device		rt
 
 device		ether
-#device 		bpf			# Berkeley packet filter
+device 		bpf			# Berkeley packet filter
 #device		vlan
 #device		lagg
 #device          if_bridge
@@ -101,22 +98,28 @@ device		ether
 
 #device		wlan
 
+
 #device		gpio
 #device		gpioled
 
+device		cfi			# Detect Flash memmory
+device		cfid
+
 #device		nvram2env
 
-device		spibus
-device		mx25l
-
-#device		usb
-#device		ehci
+device		usb
+device		dwcotg			# DWC like USB OTG Controller driver
+#device		u3g
+#device		umodem
+#device		uplcom
+#device		umass
+#device		da
+#device		pass
+#device		scbus
 #options 	SCSI_DELAY=1000		# Delay (in ms) before probing SCSI
 
 #options 	USB_EHCI_BIG_ENDIAN_DESC        # handle big-endian byte order
 #options 	USB_DEBUG
 #options 	USB_REQ_DEBUG
 
-options		FDT
-options		FDT_DTB_STATIC
-makeoptions	FDT_DTS_FILE=zbt.dts
+makeoptions	FDT_DTS_FILE=dir-600b1.dts

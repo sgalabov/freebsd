@@ -1,0 +1,3 @@
+# $FreeBSD$
+
+mips/mtk/chips/rt305x/mtk_chip_rt305x.c	standard

@@ -1,2 +1,32 @@
+# $FreeBSD$
+
+#
+# Building a mipsel kernel
+#
+machine			mips mipsel
+
+#
+# Little-endian machine
+#
 makeoptions		MIPS_LITTLE_ENDIAN=defined
+
+#
+# Default kernel load address
+#
 makeoptions		KERNLOADADDR=0x80001000
+
+#
+# MTK support depends on static FDT
+#
+options			FDT
+options			FDT_DTB_STATIC
+
+#
+# MTK support depends on MIPS_INTRNG
+#
+options			MIPS_INTRNG
+
+#
+# MTK standard file list
+#
+files			"../mtk/files.mtk"

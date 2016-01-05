@@ -17,8 +17,8 @@
 #
 # $FreeBSD$
 
-include		"../mtk/chips/rt5350/std.rt5350"
-ident		"DIR-600B5"
+include		"../mtk/chips/mt7620/std.mt7620"
+ident		"ZBT-WE826"
 #hints		"DIR-600B5.hints"
 
 # Don't build any modules yet.
@@ -86,10 +86,10 @@ device		md
 device		random
 device		loop
 # RT3050F, RT3052F have only pseudo PHYs, so mii not required
-device		rt
+#device		rt
 
 device		ether
-device 		bpf			# Berkeley packet filter
+#device 		bpf			# Berkeley packet filter
 #device		vlan
 #device		lagg
 #device          if_bridge
@@ -112,8 +112,6 @@ device		ehci
 device		ohci
 #options 	SCSI_DELAY=1000		# Delay (in ms) before probing SCSI
 
-#options 	USB_EHCI_BIG_ENDIAN_DESC        # handle big-endian byte order
-#options 	USB_DEBUG
-#options 	USB_REQ_DEBUG
+device		pci
 
-makeoptions	FDT_DTS_FILE=dir-600b5.dts
+makeoptions	FDT_DTS_FILE=zbt-we826.dts

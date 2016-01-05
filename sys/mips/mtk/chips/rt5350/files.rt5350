@@ -1,0 +1,3 @@
+# $FreeBSD$
+
+mips/mtk/chips/rt5350/mtk_chip_rt5350.c	standard

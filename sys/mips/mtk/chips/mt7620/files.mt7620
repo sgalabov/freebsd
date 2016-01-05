@@ -1,0 +1,3 @@
+# $FreeBSD$
+
+mips/mtk/chips/mt7620/mtk_chip_mt7620.c	standard

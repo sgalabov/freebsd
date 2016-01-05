@@ -14,7 +14,7 @@
 		cpu0: cpu@0 {
 			compatible = "mti,mips24kc";
 			reg = <0>;
-			clock-frequency = <360000000>;
+			clock-frequency = <320000000>;
 		};
 	};
 
@@ -77,7 +77,7 @@
 			device_type = "serial";
 			compatible = "mtk,mtk-uart";
 			reg = <0xc00 0x100>;
-			clock-frequency = <120000000>;
+			clock-frequency = <320000000>;
 			current-speed = <57600>;
 			reg-shift = <2>;
 			interrupts = <12>;
@@ -85,24 +85,17 @@
 		    };
 	        };
 
-		ehci {
-			compatible = "mtk,mtk-ehci";
-			reg = <0x101C0000 0x1000>;
+		dotg {
+			compatible = "mtk,mtk-dotg";
+			reg = <0x101C0000 0x40000>;
 			interrupts = <18>;
 			interrupt-parent = <&intc>;
-			status = "disabled";
-		};
-
-		ohci {
-			compatible = "mtk,mtk-ohci";
-			reg = <0x101C1000 0x1000>;
-			interrupts = <18>;
-			interrupt-parent = <&intc>;
+			dr_mode = "host";
 			status = "disabled";
 		};
 
 	        rt {
-			compatible = "mtk,rt5350-eth";
+			compatible = "mtk,rt305x-eth";
 			reg = <0x10100000 0x10000>;
 			status = "okay";
 			interrupts = <5>;
@@ -116,6 +109,12 @@
 			interrupts = <6>;
 			interrupt-parent = <&cpuintc>;
 	        };
+	};
+
+	flash {
+		compatible = "cfi-flash";
+		reg = <0x1F000000 0x01000000>;
+		status = "disabled";
 	};
 };
 

@@ -3,20 +3,22 @@
  */
 
 /dts-v1/;
-/include/ "mt7620a.dtsi"
+/include/ "rt305x.dtsi"
 
 / {
 	compatible = "ralink,rt5350-soc";
-	model = "DIR-600B5";
+	model = "DIR-600B1";
 
 	memory {
-		/* 128MB RAM */
+		/* 32MB RAM */
 	       	device_type = "memory";
-		reg = < 0x80000000 0x8000000 >;
+		reg = < 0x80000000 0x2000000 >;
 	};
+
 
 	soc: SOC {
 	    pbus {
+/*
 		spi0 {
 			flash {
 				compatible = "flash,mx25l";
@@ -31,7 +33,9 @@
 				};
 			};
 		};
+*/
 	    };
+	    dotg { status = "okay"; };
 	};
 
 	aliases {
@@ -45,4 +49,3 @@
 	};
 
 };
-

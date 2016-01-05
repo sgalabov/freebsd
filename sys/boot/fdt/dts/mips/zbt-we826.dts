@@ -3,16 +3,16 @@
  */
 
 /dts-v1/;
-/include/ "rt5350.dtsi"
+/include/ "mt7620a.dtsi"
 
 / {
 	compatible = "ralink,rt5350-soc";
 	model = "DIR-600B5";
 
 	memory {
-		/* 32MB RAM */
+		/* 128MB RAM */
 	       	device_type = "memory";
-		reg = < 0x80000000 0x2000000 >;
+		reg = < 0x80000000 0x8000000 >;
 	};
 
 	soc: SOC {

@@ -1,9 +1,17 @@
+# $FreeBSD$
+
+mips/mtk/mtk_chip.c		standard
 mips/mtk/mtk_machdep.c		standard
 mips/mtk/mtk_sysctl.c		standard
 mips/mtk/uart_dev_mtk.c		optional uart !uart_ns8250
 mips/mtk/mtk_intr.c		optional !gic
 mips/mtk/mtk_intr_gic.c		optional gic
 mips/mtk/mtk_spi.c		optional spibus
+mips/mtk/mtk_ohci.c		optional usb ohci
+mips/mtk/mtk_ehci.c		optional usb ehci
+mips/mtk/mtk_dotg.c		optional usb dwcotg
+mips/mtk/mtk_pci.c		optional pci
+mips/mtk/if_rt.c		optional rt
 
 # Hack to reuse ARM intrng code
 kern/subr_intr.c		standard
@@ -14,4 +22,3 @@ mips/mtk/mips_pic.c		standard
 
 # Standard MIPS ticker
 mips/mips/tick.c		optional !gic
-
