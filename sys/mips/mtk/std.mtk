@@ -1,0 +1,2 @@
+makeoptions		MIPS_LITTLE_ENDIAN=defined
+makeoptions		KERNLOADADDR=0x80001000

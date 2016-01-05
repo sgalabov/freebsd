@@ -1,0 +1,12 @@
+machine		mips mipsel
+ident		RT5350
+cpu		CPU_MIPS4KC
+include		"../mtk/std.mtk"
+files		"../mtk/files.mtk"
+
+makeoptions	RT5350
+options		RT5350
+options		RT305X_UBOOT
+
+nodevice	uart_ns8250
+device		uart

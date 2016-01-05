@@ -1,0 +1,106 @@
+/*
+ * Copyright (c) 2013, Alexander A. Mityaev <sansan@adm.ua>
+ */
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	compatible = "mtk,rt5350-soc";
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "mti,mips24kc";
+			reg = <0>;
+			clock-frequency = <580000000>;
+		};
+	};
+
+	cpuintc: cpuintc {
+		#address-cells = <0>;
+		#interrupt-cells = <1>;
+		interrupt-controller;
+		compatible = "mti,cpu-interrupt-controller";
+	};
+
+	soc: SOC {
+		device_type = "soc";
+		compatible = "simple-bus";
+		reg = <0x10000000 0x00200000>;
+		ranges = <0x0 0x0 0x1FFFFFFF>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		interrupt-parent = <0>;
+
+		pbus {
+		    compatible = "ralink,rt5350-palmbus", "simple-bus";
+		    reg = <0x10000000 0x00100000>;
+		    ranges = <0x0 0x10000000 0x1FFFFF>;
+		    #address-cells = <1>;
+		    #size-cells = <1>;
+		    interrupt-parent = <0>;
+
+		    intc: intc {
+			compatible = "mtk,mtk-intc";
+			reg = <0x200 0x100>;
+
+			interrupt-controller;
+			#interrupt-cells = <1>;
+
+			interrupt-parent = <&cpuintc>;
+			interrupts = <2>;
+
+			status = "okay";
+		    };
+
+		    sysc {
+			compatible="mtk,mtk-sysc", "ralink,rt305x-sysc";
+			reg = <0x0 0x100>;
+		    };
+
+		    spi0 {
+			compatible = "mtk,mtk-spi";
+			reg = < 0xb00 0x100 >;
+		    };
+	
+		    gpio {
+			compatible = "ralink,rt305x-gpio";
+			reg = < 0x600 0x34 >;
+			interrupt-parent = <&intc>;
+			interrupts = <6>;
+			gpio-controller;
+		    };
+
+		    uart0: uart@c00 {
+			device_type = "serial";
+			compatible = "mtk,mtk-uart";
+			reg = <0xc00 0x100>;
+			clock-frequency = <120000000>;
+			current-speed = <115200>;
+			reg-shift = <2>;
+			interrupts = <12>;
+			interrupt-parent = <&intc>;
+		    };
+
+	        };
+
+	        rt {
+			compatible = "ralink,rt5350-eth";
+			reg = <0x10100000 0x10000>;
+			status = "okay";
+			interrupts = <5>;
+			interrupt-parent = <&cpuintc>;
+	        };
+
+	        ral {
+			compatible = "ralink,rt5350-wmac";
+			reg = <0x10180000 0x40000>;
+			status = "okay";
+			interrupts = <6>;
+			interrupt-parent = <&cpuintc>;
+	        };
+	};
+};
+

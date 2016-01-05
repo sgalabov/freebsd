@@ -1,0 +1,17 @@
+mips/mtk/mtk_machdep.c		standard
+mips/mtk/mtk_sysctl.c		standard
+mips/mtk/uart_dev_mtk.c		optional uart !uart_ns8250
+mips/mtk/mtk_intr.c		optional !gic
+mips/mtk/mtk_intr_gic.c		optional gic
+mips/mtk/mtk_spi.c		optional spibus
+
+# Hack to reuse ARM intrng code
+kern/subr_intr.c		standard
+kern/pic_if.m			standard
+
+# Intrng compatible MIPS32 interrupt controller
+mips/mtk/mips_pic.c		standard
+
+# Standard MIPS ticker
+mips/mips/tick.c		optional !gic
+
