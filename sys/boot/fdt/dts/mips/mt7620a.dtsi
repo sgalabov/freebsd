@@ -64,21 +64,57 @@
 			compatible = "mtk,mtk-spi";
 			reg = < 0xb00 0x100 >;
 		    };
-	
-		    gpio {
-			compatible = "ralink,rt305x-gpio";
-			reg = < 0x600 0x34 >;
-			interrupt-parent = <&intc>;
-			interrupts = <6>;
+
+		    gpio0: gpio@600 {
+			compatible = "mtk,mtk-gpio";
+			reg = <0x600 0x34>;
+
 			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+
+			interrupt-parrent = <&intc>;
+			interrupts = <6>;
+
+			mtk,num-pins = <24>;
+			mtk,register-gap;
+
+			status = "okay";
+
+			led0 {
+				compatible = "gpioled";
+
+				gpios = <&gpio0 0 2 0>;
+				name = "led0";
+			};
 		    };
 
+		    gpio1: gpio@638 {
+			compatible = "mtk,mtk-gpio";
+			reg = <0x638 0x24>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+
+			interrupt-parent = <&intc>;
+			interrupts = <6>;
+
+			mtk,num-pins = <16>;
+
+			status = "okay";
+		    };
+	
 		    uart0: uart@c00 {
 			device_type = "serial";
 			compatible = "mtk,mtk-uart";
 			reg = <0xc00 0x100>;
-			clock-frequency = <120000000>;
-			current-speed = <57600>;
+			clock-frequency = <40000000>;
+			current-speed = <115200>;
 			reg-shift = <2>;
 			interrupts = <12>;
 			interrupt-parent = <&intc>;

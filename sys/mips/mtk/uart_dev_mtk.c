@@ -121,9 +121,10 @@ mtk_uart_init(struct uart_bas *bas, int baudrate, int databits,
 	default:		return;
 	}
 
-        uart_setreg(bas, UART_CDDL_REG,
-        	 (bas->rclk != 0?bas->rclk:DEFAULT_RCLK)/3/16/baudrate);
-	uart_barrier(bas);
+	if (bas->rclk) {
+        	uart_setreg(bas, UART_CDDL_REG, bas->rclk/16/baudrate);
+		uart_barrier(bas);
+	}
 
         uart_setreg(bas, UART_LCR_REG, databits |
 				(stopbits==1?0:UART_LCR_STB_15) |
