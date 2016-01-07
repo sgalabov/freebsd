@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2016 Stanislav Galabov.
  * Copyright (c) 2010 Aleksandr Rybalko.
  * All rights reserved.
  *
@@ -45,6 +46,13 @@ __FBSDID("$FreeBSD$");
 #include <mips/mtk/mtk_sysctlreg.h>
 #include <mips/mtk/mtk_chip.h>
 
+#include <dev/fdt/fdt_pinctrl.h>
+#include <dev/fdt/fdt_clock.h>
+#include <mips/mtk/fdt_reset.h>
+
+#include "fdt_pinctrl_if.h"
+#include "fdt_clock_if.h"
+#include "fdt_reset_if.h"
 
 static int	mtk_sysctl_probe(device_t);
 static int	mtk_sysctl_attach(device_t);
@@ -160,7 +168,6 @@ mtk_sysctl_attach(device_t dev)
 		return (ENXIO);
 	mtk_sysctl_softc = sc;
 
-
 	/* Map control/status registers. */
 	sc->mem_rid = 0;
 	sc->mem_res = bus_alloc_resource_any(dev, SYS_RES_MEMORY,
@@ -188,6 +195,10 @@ mtk_sysctl_attach(device_t dev)
 	}
 #endif
 	mtk_chip_identify();
+
+	fdt_clock_register_provider(dev);
+	fdt_reset_register_provider(dev);
+	//fdt_pinctrl_register_provider(dev);
 
 	return (bus_generic_attach(dev));
 }
@@ -233,10 +244,96 @@ mtk_sysctl_set(uint32_t reg, uint32_t val)
 	return;
 }
 
+static int
+mtk_pinctrl_configure(device_t dev, phandle_t cfgxref)
+{
+
+	return (0);
+}
+
+static int
+mtk_clock_enable(device_t dev, int index)
+{
+	struct mtk_sysctl_softc *sc = device_get_softc(dev);
+	uint32_t mask = (1u << index);
+
+	if (index < 0 || index > 31)
+		return (EINVAL);
+
+	bus_write_4(sc->mem_res, 0x30,
+	    bus_read_4(sc->mem_res, 0x30) | mask);
+
+	return (0);
+}
+
+static int
+mtk_clock_disable(device_t dev, int index)
+{
+	struct mtk_sysctl_softc *sc = device_get_softc(dev);
+	uint32_t mask = ~(1u << index);
+
+	if (index < 0 || index > 31)
+		return (EINVAL);
+
+	bus_write_4(sc->mem_res, 0x30,
+	    bus_read_4(sc->mem_res, 0x30) & mask);
+
+	return (0);
+}
+
+static int
+mtk_clock_get_info(device_t dev, int index, struct fdt_clock_info *info)
+{
+
+	return (0);
+}
+
+static int
+mtk_reset_apply(device_t dev, int index)
+{
+	struct mtk_sysctl_softc *sc = device_get_softc(dev);
+	uint32_t mask = (1u << index);
+
+	if (index < 1 || index > 31)
+		return (EINVAL);
+
+	bus_write_4(sc->mem_res, 0x34,
+	    bus_read_4(sc->mem_res, 0x34) | mask);
+
+	return (0);
+}
+
+static int
+mtk_reset_remove(device_t dev, int index)
+{
+	struct mtk_sysctl_softc *sc = device_get_softc(dev);
+	uint32_t mask = ~(1u << index);
+
+	if (index < 1 || index > 31)
+		return (EINVAL);
+
+	bus_write_4(sc->mem_res, 0x34,
+	    bus_read_4(sc->mem_res, 0x34) & mask);
+
+	return (0);
+}
+
 static device_method_t mtk_sysctl_methods[] = {
 	DEVMETHOD(device_probe,			mtk_sysctl_probe),
 	DEVMETHOD(device_attach,		mtk_sysctl_attach),
 	DEVMETHOD(device_detach,		mtk_sysctl_detach),
+
+	/* pinctrl interface */
+	DEVMETHOD(fdt_pinctrl_configure,	mtk_pinctrl_configure),
+
+	/* fdt_clock interface */
+	DEVMETHOD(fdt_clock_enable,		mtk_clock_enable),
+	DEVMETHOD(fdt_clock_disable,		mtk_clock_disable),
+	DEVMETHOD(fdt_clock_get_info,		mtk_clock_get_info),
+
+	/* fdt_reset interface */
+	DEVMETHOD(fdt_reset_apply,		mtk_reset_apply),
+	DEVMETHOD(fdt_reset_remove,		mtk_reset_remove),
 
 	{0, 0},
 };

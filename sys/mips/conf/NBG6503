@@ -114,4 +114,8 @@ device		ohci
 
 device		pci
 
+device		fdt_clock
+device		fdt_pinctrl
+device		fdt_reset
+
 makeoptions	FDT_DTS_FILE=nbg6503.dts
