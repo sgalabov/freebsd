@@ -43,6 +43,8 @@ __FBSDID("$FreeBSD$");
                 
 #include <machine/bus.h>
 #include <machine/intr.h>
+
+#include <mips/mtk/mtk_chip.h>
                 
 #include <dev/gpio/gpiobusvar.h>
                 
@@ -80,7 +82,7 @@ struct mtk_gpio_softc {
 
 static struct resource_spec mtk_gpio_spec[] = {
 	{ SYS_RES_MEMORY, 0, RF_ACTIVE },
-	{ SYS_RES_IRQ,    0, RF_ACTIVE },
+	{ SYS_RES_IRQ,    0, RF_ACTIVE | RF_SHAREABLE },
 	{ -1, 0 }
 };
 
@@ -225,6 +227,12 @@ mtk_gpio_attach(device_t dev)
 	MTK_GPIO_LOCK_INIT(sc);
 
 	node = ofw_bus_get_node(dev);
+
+	if (OF_hasprop(node, "clocks"))
+		mtk_chip_start_clock(dev);
+	if (OF_hasprop(node, "resets"))
+		mtk_chip_reset_device(dev);
+
 	if (OF_hasprop(node, "mtk,register-gap")) {
 		device_printf(dev, "<register gap>\n");
 		sc->do_remap = 1;

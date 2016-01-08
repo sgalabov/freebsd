@@ -60,13 +60,15 @@
 			reg = <0x0 0x100>;
 			pinctrl-0 = <&mt7620_pins>;
 			mt7620_pins: pinmux_mt7620_pins {
-				pinctrl-single,bits = <0x60 0x00000000 0x00030000>;
+			    pinctrl-single,bits = <0x60 0x00000000 0x00030000>,
+						  <0x60 0x00002000 0x00002000>;
 			};
 		    };
 
 		    spi0 {
 			compatible = "mtk,mtk-spi";
 			reg = < 0xb00 0x100 >;
+			status = "disabled";
 		    };
 
 		    gpio0: gpio@600 {
@@ -79,8 +81,11 @@
 			interrupt-controller;
 			#interrupt-cells = <2>;
 
-			interrupt-parrent = <&intc>;
+			interrupt-parent = <&intc>;
 			interrupts = <6>;
+
+			clocks = <&sysc 13>;
+			resets = <&sysc 13>;
 
 			mtk,num-pins = <24>;
 			mtk,register-gap;
@@ -105,7 +110,43 @@
 
 			status = "okay";
 		    };
-	
+
+		    gpio2: gpio@660 {
+			compatible = "mtk,mtk-gpio";
+			reg = <0x660 0x24>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+
+			interrupt-parent = <&intc>;
+			interrupts = <6>;
+
+			mtk,num-pins = <32>;
+
+			status = "okay";
+		    };
+
+		    gpio3: gpio@688 {
+			compatible = "mtk,mtk-gpio";
+			reg = <0x688 0x24>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+
+			interrupt-parent = <&intc>;
+			interrupts = <6>;
+
+			mtk,num-pins = <1>;
+
+			status = "okay";
+		    };
+
 		    uart0: uart@c00 {
 			device_type = "serial";
 			compatible = "mtk,mtk-uart";
@@ -167,8 +208,20 @@
 
 		red {
 			label = "red";
-			gpios = <&gpio1 14 2 0>;
+			gpios = <&gpio1 12 0x102 0>;
+			default-state = "off";
+		};
+
+		green {
+			label = "green";
+			gpios = <&gpio1 15 0x102 0>;
 			default-state = "on";
+		};
+
+		wifi {
+			label = "wifi";
+			gpios = <&gpio3 0 2 0>;
+			default-state = "off";
 		};
 	};
 };
