@@ -55,9 +55,13 @@
 			status = "okay";
 		    };
 
-		    sysc {
+		    sysc: sysc {
 			compatible="mtk,mtk-sysc", "ralink,rt305x-sysc";
 			reg = <0x0 0x100>;
+			pinctrl-0 = <&mt7620_pins>;
+			mt7620_pins: pinmux_mt7620_pins {
+				pinctrl-single,bits = <0x60 0x00000000 0x00030000>;
+			};
 		    };
 
 		    spi0 {
@@ -82,13 +86,6 @@
 			mtk,register-gap;
 
 			status = "okay";
-
-			led0 {
-				compatible = "gpioled";
-
-				gpios = <&gpio0 0 2 0>;
-				name = "led0";
-			};
 		    };
 
 		    gpio1: gpio@638 {
@@ -128,6 +125,8 @@
 			interrupts = <18>;
 			interrupt-parent = <&intc>;
 			status = "disabled";
+			resets = <&sysc 25>, <&sysc 22>;
+			clocks = <&sysc 25>, <&sysc 22>;
 		};
 
 		ohci {
@@ -160,6 +159,16 @@
 			interrupts = <4>;
 			interrupt-parent = <&cpuintc>;
 			status = "okay";
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		red {
+			label = "red";
+			gpios = <&gpio1 14 2 0>;
+			default-state = "on";
 		};
 	};
 };

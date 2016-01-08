@@ -29,15 +29,20 @@
 #ifndef _MTK_CHIP_H_
 #define _MTK_CHIP_H_
 
-extern void mtk_chip_print_basic_identity(void);
+extern void mtk_chip_print_basic_identity(device_t);
 extern void mtk_chip_enable_usb_host(void);
 extern void mtk_chip_disable_usb_host(void);
 extern uint32_t mtk_chip_get_cpu_freq(void);
 extern void mtk_chip_reset(void);
 extern void mtk_chip_init(void);
-extern void mtk_chip_identify(void);
+extern void mtk_chip_identify(device_t);
 
 extern int mtk_chip_pci_phy_init(device_t);
 extern int mtk_chip_pci_init(device_t);
 
+extern int mtk_chip_start_clock(device_t);
+extern int mtk_chip_stop_clock(device_t);
+extern int mtk_chip_reset_device(device_t);
+extern int mtk_chip_apply_reset(device_t);
+extern int mtk_chip_remove_reset(device_t);
 #endif /* _MTK_CHIP_H_ */

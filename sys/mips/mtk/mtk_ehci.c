@@ -95,7 +95,8 @@ ehci_fdt_attach(device_t self)
 	int err;
 	int rid;
 
-	mtk_chip_enable_usb_host();
+	mtk_chip_start_clock(self);
+	mtk_chip_reset_device(self);
 
 	/* initialise some bus fields */
 	sc->sc_bus.parent = self;
@@ -184,7 +185,8 @@ ehci_fdt_detach(device_t self)
 		ehci_detach(sc);
 
 		/* Stop EHCI clock */
-		mtk_chip_disable_usb_host();
+		mtk_chip_apply_reset(self);
+		mtk_chip_stop_clock(self);
 
 		err = bus_teardown_intr(self, sc->sc_irq_res, sc->sc_intr_hdl);
 		if (err)

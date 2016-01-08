@@ -27,27 +27,38 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
-#include <sys/types.h>
+#include <sys/param.h>
+//#include <sys/kernel.h>
 #include <sys/systm.h>
 
 #include <mips/mtk/mtk_sysctlreg.h>
 
+#include <dev/ofw/ofw_bus.h>
+
+#include <dev/fdt/fdt_clock.h>
+#include <mips/mtk/fdt_reset.h>
+
 /* Prototypes */
-void mtk_chip_print_basic_identity(void);
+void mtk_chip_print_basic_identity(device_t);
 void mtk_chip_reset(void) __attribute__((weak));
 void mtk_chip_init(void) __attribute__((weak));
-void mtk_chip_identify(void) __attribute__((weak));
+void mtk_chip_identify(device_t) __attribute__((weak));
 int  mtk_chip_pci_phy_init(device_t) __attribute__((weak));
 int  mtk_chip_pci_init(device_t) __attribute__((weak));
+int  mtk_chip_reset_device(device_t);
+int  mtk_chip_apply_reset(device_t);
+int  mtk_chip_remove_reset(device_t);
+int  mtk_chip_start_clock(device_t);
+int  mtk_chip_stop_clock(device_t);
 
 /* Very basic chip identity, suitable for all chips */
 void
-mtk_chip_print_basic_identity(void)
+mtk_chip_print_basic_identity(device_t dev)
 {
 	uint32_t val;
 
 	val = mtk_sysctl_get(SYSCTL_CHIPID0_3);
-	printf("Chip ID: %c%c%c%c",
+	device_printf(dev, "Chip ID: %c%c%c%c",
 	    (val >>  0) & 0xff,
 	    (val >>  8) & 0xff,
 	    (val >> 16) & 0xff,
@@ -77,10 +88,10 @@ mtk_chip_init(void)
 
 /* Generic chip identify, to be overriden by specific chips */
 void
-mtk_chip_identify(void)
+mtk_chip_identify(device_t dev)
 {
 
-	mtk_chip_print_basic_identity();
+	mtk_chip_print_basic_identity(dev);
 }
 
 int
@@ -95,4 +106,47 @@ mtk_chip_pci_init(device_t dev __unused)
 {
 
 	return (-1);
+}
+
+int
+mtk_chip_stop_clock(device_t dev)
+{
+
+	return (fdt_clock_disable_all(dev));
+}
+
+int
+mtk_chip_start_clock(device_t dev)
+{
+
+	return (fdt_clock_enable_all(dev));
+}
+
+int
+mtk_chip_reset_device(device_t dev)
+{
+	int res;
+
+	res = fdt_reset_apply_all(dev);
+	if (res == 0) {
+		DELAY(100000);
+		res = fdt_reset_remove_all(dev);
+		if (res == 0)
+			DELAY(100000);
+	}
+
+	return (res);
+}
+
+int
+mtk_chip_apply_reset(device_t dev)
+{
+
+	return (fdt_reset_apply_all(dev));
+}
+
+int mtk_chip_remove_reset(device_t dev)
+{
+
+	return (fdt_reset_remove_all(dev));
 }

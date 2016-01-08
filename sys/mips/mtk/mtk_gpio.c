@@ -617,6 +617,14 @@ mtk_gpio_intr(void *arg)
 	return (FILTER_HANDLED);
 }
 
+static phandle_t
+mtk_gpio_get_node(device_t bus, device_t dev)
+{
+
+	/* We only have one child, the GPIO bus, which needs our own node. */
+	return (ofw_bus_get_node(bus));
+}
+
 static device_method_t mtk_gpio_methods[] = {
 	/* Device interface */
 	DEVMETHOD(device_probe,		mtk_gpio_probe),
@@ -633,7 +641,7 @@ static device_method_t mtk_gpio_methods[] = {
 	DEVMETHOD(gpio_pin_get,		mtk_gpio_pin_get),
 	DEVMETHOD(gpio_pin_set,		mtk_gpio_pin_set),
 	DEVMETHOD(gpio_pin_toggle,	mtk_gpio_pin_toggle),
- 
+
 	/* Interrupt controller interface */
 	DEVMETHOD(pic_disable_source,	mtk_gpio_pic_disable_source),
 	DEVMETHOD(pic_enable_intr,	mtk_gpio_pic_enable_intr),
@@ -643,6 +651,9 @@ static device_method_t mtk_gpio_methods[] = {
 	DEVMETHOD(pic_pre_ithread,	mtk_gpio_pic_pre_ithread),
 	DEVMETHOD(pic_register,		mtk_gpio_pic_register),
 	DEVMETHOD(pic_unregister,	mtk_gpio_pic_unregister),
+
+	/* ofw_bus interface */
+	DEVMETHOD(ofw_bus_get_node,	mtk_gpio_get_node),
 
 	DEVMETHOD_END
 };

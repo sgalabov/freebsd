@@ -194,13 +194,20 @@ mtk_sysctl_attach(device_t dev)
 		return (ENXIO);
 	}
 #endif
-	mtk_chip_identify();
+	mtk_chip_identify(dev);
+
+	if ((error = bus_generic_attach(dev)))
+		return (error);
 
 	fdt_clock_register_provider(dev);
 	fdt_reset_register_provider(dev);
-	//fdt_pinctrl_register_provider(dev);
+	fdt_pinctrl_register(dev, "pinctrl-single,bits");
+	fdt_pinctrl_configure_tree(dev);
 
-	return (bus_generic_attach(dev));
+	device_printf(dev, "GPIOMODE: 0x%08x\n",
+	    bus_read_4(sc->mem_res, 0x60));
+
+	return (0);
 }
 
 static int
@@ -208,16 +215,19 @@ mtk_sysctl_detach(device_t dev)
 {
 	struct mtk_sysctl_softc *sc = device_get_softc(dev);
 
+	fdt_clock_unregister_provider(dev);
+	fdt_reset_unregister_provider(dev);
+
 	bus_generic_detach(dev);
 
 	if (sc->mem_res)
 		bus_release_resource(dev, SYS_RES_MEMORY, sc->mem_rid,
 		    sc->mem_res);
-#ifdef notyet
+
 	if (sc->irq_res)
 		bus_release_resource(dev, SYS_RES_IRQ, sc->irq_rid,
 		    sc->irq_res);
-#endif
+
 	return(0);
 }
 
@@ -247,6 +257,30 @@ mtk_sysctl_set(uint32_t reg, uint32_t val)
 static int
 mtk_pinctrl_configure(device_t dev, phandle_t cfgxref)
 {
+	struct mtk_sysctl_softc *sc = device_get_softc(dev);
+	phandle_t node;
+	ssize_t i, len;
+	uint32_t *value, *pconf;
+
+	node = OF_node_from_xref(cfgxref);
+
+	len = OF_getencprop_alloc(node, "pinctrl-single,bits",
+	    sizeof(uint32_t) * 3, (void**)&value);
+	if (len < 0) {
+		device_printf(dev, "missing pinctrl-single,bits attribute\n");
+		return (EINVAL);
+	}
+
+	pconf = value;
+	for (i = 0; i < len; i++, pconf += 4) {
+		if (pconf[0] != 0x60) {
+			device_printf(dev, "wrong GPIOMODE register 0x%x\n",
+			    pconf[0]);
+			return (EINVAL);
+		}
+		bus_write_4(sc->mem_res, 0x60,
+		    (bus_read_4(sc->mem_res, 0x60) & ~pconf[2]) | pconf[1]);
+	}
 
 	return (0);
 }
@@ -284,6 +318,16 @@ mtk_clock_disable(device_t dev, int index)
 static int
 mtk_clock_get_info(device_t dev, int index, struct fdt_clock_info *info)
 {
+	struct mtk_sysctl_softc *sc = device_get_softc(dev);
+	uint32_t mask = (1u << index);
+
+	if (index < 0 || index > 31 || info == NULL)
+		return (EINVAL);
+
+	if (bus_read_4(sc->mem_res, 0x30) & mask)
+		info->flags = FDT_CIFLAG_RUNNING;
+	else
+		info->flags = 0;
 
 	return (0);
 }
@@ -339,11 +383,11 @@ static device_method_t mtk_sysctl_methods[] = {
 };
 
 static driver_t mtk_sysctl_driver = {
-	"mtk_sysctl",
+	"sysc",
 	mtk_sysctl_methods,
 	sizeof(struct mtk_sysctl_softc),
 };
 static devclass_t mtk_sysctl_devclass;
 
-DRIVER_MODULE(mtk_sysctl, simplebus, mtk_sysctl_driver, mtk_sysctl_devclass, 0,
-	0);
+EARLY_DRIVER_MODULE(mtk_sysctl, simplebus, mtk_sysctl_driver,
+    mtk_sysctl_devclass, 0, 0, BUS_PASS_INTERRUPT + BUS_PASS_ORDER_EARLY);
