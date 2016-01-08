@@ -32,6 +32,7 @@
 			};
 		};
 	    };
+	    ohci { status = "okay"; };
 	    ehci { status = "okay"; };
 	};
 

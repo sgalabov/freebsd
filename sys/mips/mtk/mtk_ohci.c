@@ -95,7 +95,9 @@ ohci_fdt_attach(device_t self)
 	int err;
 	int rid;
 
-	mtk_chip_enable_usb_host();
+//	mtk_chip_enable_usb_host();
+	mtk_chip_start_clock(self);
+        mtk_chip_reset_device(self);
 
 	/* initialise some bus fields */
 	sc->sc_bus.parent = self;
