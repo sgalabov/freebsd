@@ -1,0 +1,13 @@
+# $FreeBSD$
+
+ident		RT3883
+cpu		CPU_MIPS74KC
+include		"../mtk/std.mtk"
+files		"../mtk/chips/rt3883/files.rt3883"
+
+makeoptions	RT5350
+options		RT5350
+options		RT305X_UBOOT
+
+device		uart
+nodevice	uart_ns8250

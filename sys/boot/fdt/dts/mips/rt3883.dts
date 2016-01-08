@@ -1,0 +1,29 @@
+/*
+ * Copyright (c) 2013, Alexander A. Mityaev <sansan@adm.ua>
+ */
+
+/dts-v1/;
+/include/ "rt3883.dtsi"
+
+/ {
+	compatible = "mtk,rt3883-soc";
+	model = "RT3883";
+
+	memory {
+		/* 64MB RAM */
+	       	device_type = "memory";
+		reg = < 0x80000000 0x4000000 >;
+	};
+
+	aliases {
+		uartlite = &uart0;
+	};
+
+	chosen {
+		bootargs = "-v";
+		stdin = &uart0;
+		stdout = &uart0;
+	};
+
+};
+
