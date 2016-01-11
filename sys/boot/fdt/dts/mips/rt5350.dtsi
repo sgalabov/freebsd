@@ -25,7 +25,7 @@
 		compatible = "mti,cpu-interrupt-controller";
 	};
 
-	soc: SOC {
+	soc {
 		device_type = "soc";
 		compatible = "simple-bus";
 		reg = <0x10000000 0x00200000>;
@@ -35,7 +35,7 @@
 		interrupt-parent = <0>;
 
 		pbus {
-		    compatible = "ralink,rt5350-palmbus", "simple-bus";
+		    compatible = "simple-bus";
 		    reg = <0x10000000 0x00100000>;
 		    ranges = <0x0 0x10000000 0x1FFFFF>;
 		    #address-cells = <1>;

@@ -15,7 +15,7 @@
 		reg = < 0x80000000 0x4000000 >;
 	};
 
-	soc: SOC {
+	soc {
 	    pbus {
 		spi0 {
 			flash {

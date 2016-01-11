@@ -16,7 +16,7 @@
 	};
 
 
-	soc: SOC {
+	soc {
 	    pbus {
 /*
 		spi0 {
