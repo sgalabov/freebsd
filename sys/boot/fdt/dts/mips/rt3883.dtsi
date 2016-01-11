@@ -72,6 +72,13 @@
 		    };
 
 	        };
+		rt {
+                	compatible = "mtk,rt3052-eth";
+                        reg = <0x10100000 0x10000>;
+                        status = "okay";
+                        interrupts = <5>;
+                        interrupt-parent = <&cpuintc>;
+                };
 	};
 };
 
