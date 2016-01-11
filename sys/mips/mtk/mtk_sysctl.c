@@ -37,7 +37,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/rman.h>
 #include <sys/malloc.h>
 
-#include <machine/bus.h>
+#include <machine/fdt.h>
 
 #include <dev/ofw/openfirm.h>
 #include <dev/ofw/ofw_bus.h>
@@ -46,6 +46,7 @@ __FBSDID("$FreeBSD$");
 #include <mips/mtk/mtk_sysctlreg.h>
 #include <mips/mtk/mtk_chip.h>
 
+#include <dev/fdt/fdt_common.h>
 #include <dev/fdt/fdt_pinctrl.h>
 #include <dev/fdt/fdt_clock.h>
 #include <mips/mtk/fdt_reset.h>
@@ -60,6 +61,33 @@ static int	mtk_sysctl_detach(device_t);
 
 
 static struct mtk_sysctl_softc *mtk_sysctl_softc = NULL;
+
+static const struct ofw_compat_data mtk_compat_data[] = {
+	{ "mtk,rt2880sh-soc",	(uintptr_t)MTK_CHIP_RT2880_SHUTTLE },
+	{ "mtk,rt2880mp-soc",	(uintptr_t)MTK_CHIP_RT2880_MP },
+	{ "mtk,rt2883-soc",	(uintptr_t)MTK_CHIP_RT2883 },
+	{ "mtk,rt3050-soc",	(uintptr_t)MTK_CHIP_RT3050 },
+	{ "mtk,rt3052-soc",	(uintptr_t)MTK_CHIP_RT3052 },
+	{ "mtk,rt3350-soc",	(uintptr_t)MTK_CHIP_RT3350 },
+	{ "mtk,rt3352-soc",	(uintptr_t)MTK_CHIP_RT3352 },
+	{ "mtk,rt3662-soc",	(uintptr_t)MTK_CHIP_RT3662 },
+	{ "mtk,rt3883-soc",	(uintptr_t)MTK_CHIP_RT3883 },
+	{ "mtk,rt5350-soc",	(uintptr_t)MTK_CHIP_RT5350 },
+	{ "mtk,rt6855-soc",	(uintptr_t)MTK_CHIP_RT6855 },
+	{ "mtk,rt6856-soc",	(uintptr_t)MTK_CHIP_RT6856 },
+	{ "mtk,mt7620-soc",	(uintptr_t)MTK_CHIP_MT7620 },
+	{ "mtk,mt7621-soc",	(uintptr_t)MTK_CHIP_MT7621 },
+	{ "mtk,mt7628-soc",	(uintptr_t)MTK_CHIP_MT7628 },
+	{ "mtk,mt7688-soc",	(uintptr_t)MTK_CHIP_MT7688 },
+
+	/* Sentinel */
+	{ NULL,			(uintptr_t)MTK_CHIP_UNKNOWN }
+};
+
+static uint32_t mtk_chip_chipid = MTK_CHIP_UNKNOWN;
+static uint32_t mtk_chip_cpuclk = 880000000;
+static uint32_t mtk_chip_uartclk = 40000000;
+static uint32_t mtk_chip_sysclk = 440000000;
 
 #if 0
 static void
@@ -148,10 +176,14 @@ static int
 mtk_sysctl_probe(device_t dev)
 {
 
+	if (!ofw_bus_status_okay(dev))
+		return (ENXIO);
+
 	if (!ofw_bus_is_compatible(dev, "mtk,mtk-sysc"))
 		return (ENXIO);
 
 	device_set_desc(dev, "MTK System Control driver");
+
 	return (0);
 }
 
@@ -166,6 +198,7 @@ mtk_sysctl_attach(device_t dev)
 
 	if (mtk_sysctl_softc != NULL)
 		return (ENXIO);
+
 	mtk_sysctl_softc = sc;
 
 	/* Map control/status registers. */
@@ -179,21 +212,7 @@ mtk_sysctl_attach(device_t dev)
 		mtk_sysctl_detach(dev);
 		return(error);
 	}
-#ifdef notyet
-	sc->irq_rid = 0;
-	if ((sc->irq_res = bus_alloc_resource_any(dev, SYS_RES_IRQ, 
-	    &sc->irq_rid, RF_SHAREABLE | RF_ACTIVE)) == NULL) {
-		device_printf(dev, "unable to allocate IRQ resource\n");
-		return (ENXIO);
-	}
 
-	if ((bus_setup_intr(dev, sc->irq_res, INTR_TYPE_MISC, 
-	    mtk_sysctl_intr, NULL, sc, &sc->sysctl_ih))) {
-		device_printf(dev,
-		    "WARNING: unable to register interrupt handler\n");
-		return (ENXIO);
-	}
-#endif
 	mtk_chip_identify(dev);
 
 	if ((error = bus_generic_attach(dev)))
@@ -204,8 +223,9 @@ mtk_sysctl_attach(device_t dev)
 	fdt_pinctrl_register(dev, "pinctrl-single,bits");
 	fdt_pinctrl_configure_tree(dev);
 
-	device_printf(dev, "GPIOMODE: 0x%08x\n",
-	    bus_read_4(sc->mem_res, 0x60));
+	if (bootverbose)
+		device_printf(dev, "GPIOMODE: 0x%08x\n",
+		    bus_read_4(sc->mem_res, 0x60));
 
 	return (0);
 }
@@ -230,14 +250,6 @@ mtk_sysctl_detach(device_t dev)
 
 	return(0);
 }
-
-#ifdef notyet
-static int
-mtk_sysctl_intr(void *arg)
-{
-	return (FILTER_HANDLED);
-}
-#endif
 
 uint32_t
 mtk_sysctl_get(uint32_t reg)
@@ -391,3 +403,533 @@ static devclass_t mtk_sysctl_devclass;
 
 EARLY_DRIVER_MODULE(mtk_sysctl, simplebus, mtk_sysctl_driver,
     mtk_sysctl_devclass, 0, 0, BUS_PASS_INTERRUPT + BUS_PASS_ORDER_EARLY);
+
+
+/* Early clock detection functions */
+uint32_t
+mtk_chip_get_uartclk(void)
+{
+
+	return mtk_chip_uartclk;
+}
+
+uint32_t
+mtk_chip_get_sysclk(void)
+{
+
+	return mtk_chip_sysclk;
+}
+
+uint32_t
+mtk_chip_get_cpuclk(void)
+{
+
+	return mtk_chip_cpuclk;
+}
+
+uint32_t
+mtk_chip_get_chipid(void)
+{
+
+	return mtk_chip_chipid;
+}
+
+static inline uint32_t
+mtk_detect_cpuclk_rt2880sh(uint32_t val)
+{
+	uint32_t res;
+
+	switch (val) {
+	case 0:
+		res = 233333333;
+		break;
+	case 1:
+		res = 250000000;
+		break;
+	case 2:
+		res = 266666666;
+		break;
+	case 3:
+		res = 280000000;
+		break;
+	}
+
+	return (res);
+}
+
+static inline uint32_t
+mtk_detect_cpuclk_rt2880mp(uint32_t val)
+{
+	uint32_t res;
+
+	switch (val) {
+	case 0:
+		res = 250000000;
+		break;
+	case 1:
+		res = 266666666;
+		break;
+	case 2:
+		res = 280000000;
+		break;
+	case 3:
+		res = 300000000;
+		break;
+	}
+
+	return (res);
+}
+
+static inline uint32_t
+mtk_detect_cpuclk_rt2883(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+	uint32_t val, res;
+
+	val = bus_space_read_4(bst, bsh, SYSCTL_SYSCFG);
+	val >>= 20;
+	val &= 0x03;
+
+	if (mtk_chip_chipid == MTK_CHIP_RT2880_SHUTTLE)
+		res = mtk_detect_cpuclk_rt2880sh(val);
+	else if (mtk_chip_chipid == MTK_CHIP_RT2880_MP)
+		res = mtk_detect_cpuclk_rt2880sh(val);
+	else {
+		switch (val) {
+		case 0:
+			res = 380000000;
+			break;
+		case 1:
+			res = 390000000;
+			break;
+		case 2:
+			res = 400000000;
+			break;
+		case 3:
+			res = 420000000;
+			break;
+		}
+	}
+
+	return (res);
+}
+
+static uint32_t
+mtk_detect_cpuclk_rt305x(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+	uint32_t val, res;
+
+	val = bus_space_read_4(bst, bsh, SYSCTL_SYSCFG);
+	val >>= 18;
+	val &= 0x01;
+
+	if (mtk_chip_chipid == MTK_CHIP_RT3350 || !val) {
+		res = 320000000;
+	} else {
+		res = 384000000;
+	}
+
+	return (res);
+}
+
+static uint32_t
+mtk_detect_cpuclk_rt3352(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+	uint32_t val, res;
+
+	val = bus_space_read_4(bst, bsh, SYSCTL_SYSCFG);
+	val >>= 8;
+	val &= 0x01;
+
+	if (val) {
+		res = 400000000;
+	} else {
+		res = 384000000;
+	}
+
+	return (res);
+}
+
+static uint32_t
+mtk_detect_cpuclk_rt3883(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+	uint32_t val, res;
+
+	val = bus_space_read_4(bst, bsh, SYSCTL_SYSCFG);
+	val >>= 8;
+	val &= 0x03;
+
+	switch (val) {
+	case 0:
+		res = 250000000;
+		break;
+	case 1:
+		res = 384000000;
+		break;
+	case 2:
+		res = 480000000;
+		break;
+	case 3:
+		res = 500000000;
+		break;
+	}
+
+	return (res);
+}
+
+static uint32_t
+mtk_detect_cpuclk_rt5350(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+	uint32_t val, val1, res;
+
+	val = val1 = bus_space_read_4(bst, bsh, SYSCTL_SYSCFG);
+	val >>= 8;
+	val &= 0x01;
+	val1 >>= 10;
+	val1 &= 0x1;
+	val |= (val1 << 1);
+
+	res = 0;
+
+	switch (val) {
+	case 0:
+		res = 360000000;
+		break;
+	case 1:
+		/* reserved value - panic? */
+		break;
+	case 2:
+		res = 320000000;
+		break;
+	case 3:
+		res = 300000000;
+		break;
+	}
+
+	return (res);
+}
+
+static uint32_t
+mtk_detect_cpuclk_rt6855(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+
+	return (400000000);
+}
+
+static uint32_t
+mtk_detect_cpuclk_mt7620(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+	uint32_t val, res;
+
+	if (((1u<<24) & bus_space_read_4(bst, bsh, SYSCTL_MT7620_CPLL_CFG1))) {
+		res = 480000000;
+	} else {
+		val = bus_space_read_4(bst, bsh, SYSCTL_MT7620_CPLL_CFG0);
+		if (!((1u<<31) & val)) {
+			res = 600000000;
+		} else {
+			uint32_t mul, div;
+			mul = 24 + ((val & 0x70000) >> 16);
+			div = (val & 0xc00) >> 10;
+			div = (div < 3) ? div + 2 : 8;
+
+			res = (40 * mul) / div;
+			res *= (1000 * 1000);
+		}
+	}
+	
+	return (res);
+}
+
+static uint32_t
+mtk_detect_cpuclk_mt7621(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+	bus_space_handle_t memh;
+	uint32_t val, res;
+
+	res = 0;
+
+	val = bus_space_read_4(bst, bsh, SYSCTL_CLKCFG0);
+	if (val & (1u<<30)) {
+		uint32_t div;
+		/*
+		 * We need to temporarily map the MEMCTRL space, which is 0x5000
+		 * away from the SYSCTL space
+		 */
+		if (bus_space_map(bst, bsh + 0x5000, 0x1000, 0, &memh))
+			goto out_err;
+		div = bus_space_read_4(bst, memh, 0x648);
+		bus_space_unmap(bst, memh, 0x1000);
+		div >>= 4;
+		div &= 0x7f;
+		div += 1;
+		
+		val = bus_space_read_4(bst, bsh, SYSCTL_SYSCFG);
+		val >>= 6;
+		val &= 0x07;
+
+		if (val >= 6) {
+			res = 25 * div;
+		} else if (val >= 3) {
+			res = 20 * div;
+		} else {
+			res = 0 * div;
+		}
+	} else {
+		uint32_t div;
+		val = bus_space_read_4(bst, bsh, SYSCTL_CUR_CLK_STS);
+		div = (val >> 8) & 0x1f;
+		val &= 0x1f;
+
+		res = 500 * val / div;
+	}
+
+out_err:
+	return (res * 1000 * 1000);
+}
+
+static uint32_t
+mtk_detect_cpuclk_mt7628(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+	uint32_t val, res;
+
+	val = bus_space_read_4(bst, bsh, SYSCTL_SYSCFG);
+	if (val & 0x80) {
+		res = 580000000;
+	} else {
+		res = 575000000;
+	}
+
+	return res;
+}
+
+static uint32_t
+mtk_detect_sysclk_rt3883(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+	uint32_t val, val1, res;
+
+	val1 = val = bus_space_read_4(bst, bsh, SYSCTL_SYSCFG);
+	val >>= 17;
+	val &= 0x01;
+
+	val1 >>= 8;
+	val1 &= 0x03;
+
+	if (val) {
+		switch (val1) {
+		case 0:
+			res = 125000000;
+			break;
+		case 1:
+			res = 128000000;
+			break;
+		case 2:
+			res = 160000000;
+			break;
+		case 3:
+			res = 166000000;
+			break; 
+		}
+	} else {
+		switch (val1) {
+		case 0:
+			res = 83000000;
+			break;
+		case 1:
+			res = 96000000;
+			break;
+		case 2:
+			res = 120000000;
+			break;
+		case 4:
+			res = 125000000;
+			break;
+		}
+	}
+
+	return (res);
+}
+
+static uint32_t
+mtk_detect_sysclk_rt5350(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+	uint32_t val, val1, res;
+
+	val = val1 = bus_space_read_4(bst, bsh, SYSCTL_SYSCFG);
+	val >>= 8;
+	val &= 0x1;
+	val1 >>= 10;
+	val1 &= 0x1;
+	val |= (val1 << 1);
+
+	res = 0;
+
+	switch (val) {
+	case 0:
+		res = 120000000;
+		break;
+	case 1:
+		/* reserved value - panic? */
+		break;
+	case 2:
+		res = 80000000;
+		break;
+	case 3:
+		res = 100000000;
+		break;
+	}
+
+	return (res);
+}
+
+static uint32_t
+mtk_detect_sysclk_mt7620(bus_space_tag_t bst, bus_space_handle_t bsh)
+{
+	uint32_t val, res;
+
+	val = bus_space_read_4(bst, bsh, SYSCTL_SYSCFG);
+	val >>= 4;
+	val &= 0x03;
+
+	if (val == 0)
+		res = mtk_chip_cpuclk / 4;
+	else
+		res = mtk_chip_cpuclk / 3;
+
+	return (res);
+}
+
+int
+mtk_chip_early_detect(void)
+{
+	bus_space_tag_t bst;
+	bus_space_handle_t bsh;
+	phandle_t node;
+	u_long base, size;
+	int i, res;
+
+	if ((node = OF_finddevice("/")) == -1)
+		return (-2); //(EINVAL);
+	
+	for (i = 0; mtk_compat_data[i].ocd_str != NULL; i++) {
+		if (fdt_is_compatible(node, mtk_compat_data[i].ocd_str)) {
+			mtk_chip_chipid = (uint32_t)mtk_compat_data[i].ocd_data;
+			break;
+		}
+	}
+
+	if (mtk_chip_chipid == MTK_CHIP_UNKNOWN)
+		return (-3); //(EINVAL);
+
+	/* Try to find the bus address to map to... */
+	if((node = OF_finddevice("/soc")) == -1)
+		return (-4); //(EINVAL);
+
+	if (fdt_regsize(node, &base, &size) != 0)
+		return (-5); //(EINVAL);
+
+	bst = fdtbus_bs_tag;
+	if (bus_space_map(bst, base, size, 0, &bsh))
+		return (-6); //(EINVAL);
+
+	res = 0;
+
+	/* determine CPU clock */
+	switch (mtk_chip_chipid) {
+	case MTK_CHIP_RT2880_SHUTTLE: /* fallthrough */
+	case MTK_CHIP_RT2880_MP: /* fallthrough */
+	case MTK_CHIP_RT2883:
+		mtk_chip_cpuclk = mtk_detect_cpuclk_rt2883(bst, bsh);
+		break;
+	case MTK_CHIP_RT3050: /* fallthrough */
+	case MTK_CHIP_RT3052: /* fallthrough */
+	case MTK_CHIP_RT3350:
+		mtk_chip_cpuclk = mtk_detect_cpuclk_rt305x(bst, bsh);
+		break;
+	case MTK_CHIP_RT3352:
+		mtk_chip_cpuclk = mtk_detect_cpuclk_rt3352(bst, bsh);
+		break;
+	case MTK_CHIP_RT3662: /* fallthrough */
+	case MTK_CHIP_RT3883:
+		mtk_chip_cpuclk = mtk_detect_cpuclk_rt3883(bst, bsh);
+		break;
+	case MTK_CHIP_RT5350:
+		mtk_chip_cpuclk = mtk_detect_cpuclk_rt5350(bst, bsh);
+		break;
+	case MTK_CHIP_RT6855: /* fallthrough */
+	case MTK_CHIP_RT6856:
+		mtk_chip_cpuclk = mtk_detect_cpuclk_rt6855(bst, bsh);
+		break;
+	case MTK_CHIP_MT7620:
+		mtk_chip_cpuclk = mtk_detect_cpuclk_mt7620(bst, bsh);
+		break;
+	case MTK_CHIP_MT7621:
+		mtk_chip_cpuclk = mtk_detect_cpuclk_mt7621(bst, bsh);
+		break;
+	case MTK_CHIP_MT7628:
+	case MTK_CHIP_MT7688:
+		mtk_chip_cpuclk = mtk_detect_cpuclk_mt7628(bst, bsh);
+		break;
+
+	case MTK_CHIP_UNKNOWN: /* fallthrough */
+	default:
+		res = -7; //EINVAL;
+		break;
+	}
+
+	if (res)
+		goto out_err;
+
+	/* determine system clock */
+	switch (mtk_chip_chipid) {
+	case MTK_CHIP_RT2880_SHUTTLE: /* fallthrough */
+	case MTK_CHIP_RT2880_MP: /* fallthrough */
+	case MTK_CHIP_RT2883:
+		mtk_chip_sysclk = mtk_chip_cpuclk / 2;
+		break;
+	case MTK_CHIP_RT3662: /* fallthrough */
+	case MTK_CHIP_RT3883:
+		mtk_chip_sysclk = mtk_detect_sysclk_rt3883(bst, bsh);
+		break;
+	case MTK_CHIP_RT5350:
+		mtk_chip_sysclk = mtk_detect_sysclk_rt5350(bst, bsh);
+		break;
+	case MTK_CHIP_RT6855: /* fallthrough */
+	case MTK_CHIP_RT6856: /* fallthrough */
+	case MTK_CHIP_MT7621:
+		mtk_chip_sysclk = mtk_chip_cpuclk / 4;
+		break;
+	case MTK_CHIP_MT7620:
+		mtk_chip_sysclk = mtk_detect_sysclk_mt7620(bst, bsh);
+		break;
+
+	default:
+		mtk_chip_sysclk = mtk_chip_cpuclk / 3;
+		break;
+	}
+
+	/* determine UART clock */
+	switch (mtk_chip_chipid) {
+	case MTK_CHIP_RT3352: /* fallthrough */
+	case MTK_CHIP_RT3662: /* fallthrough */
+	case MTK_CHIP_RT3883: /* fallthrough */
+	case MTK_CHIP_RT5350: /* fallthrough */
+	case MTK_CHIP_RT6855: /* fallthrough */
+	case MTK_CHIP_RT6856: /* fallthrough */
+	case MTK_CHIP_MT7620: /* fallthrough */
+	case MTK_CHIP_MT7628: /* fallthrough */
+	case MTK_CHIP_MT7688:
+		mtk_chip_uartclk = 40000000;
+		break;
+	case MTK_CHIP_MT7621:
+		mtk_chip_uartclk = 50000000;
+		break;
+
+	default:
+		mtk_chip_uartclk = mtk_chip_sysclk;
+		break;
+	}
+
+out_err:
+	bus_space_unmap(bst, bsh, size);
+	return (res);
+}

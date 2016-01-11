@@ -102,8 +102,11 @@ static int
 mtk_spi_probe(device_t dev)
 {
 #ifdef FDT
-        if (!ofw_bus_is_compatible(dev, "mtk,mtk-spi"))
-            return(ENXIO);
+	if (!ofw_bus_status_okay(dev))
+		return (ENXIO);
+
+	if (!ofw_bus_is_compatible(dev, "mtk,mtk-spi"))
+		return(ENXIO);
 #endif
 	device_set_desc(dev, "MTK SPI");
 	return (0);

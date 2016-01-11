@@ -53,6 +53,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/uart/uart_bus.h>
 
 #include <mips/mtk/uart_dev_mtk.h>
+#include <mips/mtk/mtk_sysctlreg.h>
 //#include <mips/mtk/mtkreg.h>
 
 #include "uart_if.h"
@@ -121,7 +122,7 @@ mtk_uart_init(struct uart_bas *bas, int baudrate, int databits,
 	default:		return;
 	}
 
-	if (bas->rclk) {
+	if (bas->rclk && baudrate) {
         	uart_setreg(bas, UART_CDDL_REG, bas->rclk/16/baudrate);
 		uart_barrier(bas);
 	}
@@ -219,7 +220,7 @@ struct uart_class uart_mtk_class = {
 	sizeof(struct uart_mtk_softc),
 	.uc_ops = &uart_mtk_ops,
 	.uc_range = 1, /* use hinted range */
-	.uc_rclk = DEFAULT_RCLK
+	.uc_rclk = 0
 };
 
 static struct ofw_compat_data compat_data[] = {
@@ -273,6 +274,10 @@ mtk_uart_bus_attach(struct uart_softc *sc)
 	struct uart_devinfo *di;
 
 	bas = &sc->sc_bas;
+
+	if (!bas->rclk) {
+		bas->rclk = mtk_chip_get_uartclk();
+	}
 
 	if (sc->sc_sysdev != NULL) {
 		di = sc->sc_sysdev;

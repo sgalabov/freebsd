@@ -40,7 +40,10 @@
 #define SYSCTL_CLKCFG1		0x30
 #define SYSCTL_RSTCTRL		0x34
 
-#define SYSCTL_RSTCTRL		0x34
+#define SYSCTL_CUR_CLK_STS	0x44
+
+#define SYSCTL_MT7620_CPLL_CFG0	0x54
+#define SYSCTL_MT7620_CPLL_CFG1	0x58
 
 struct mtk_sysctl_softc {
 	device_t		dev;
@@ -51,7 +54,34 @@ struct mtk_sysctl_softc {
 	int			sysctl_ih;
 };
 
-uint32_t	mtk_sysctl_get(uint32_t);
-void		mtk_sysctl_set(uint32_t, uint32_t);
+extern uint32_t	mtk_sysctl_get(uint32_t);
+extern void	mtk_sysctl_set(uint32_t, uint32_t);
+
+enum mtk_chip_id {
+	MTK_CHIP_UNKNOWN,
+	MTK_CHIP_RT2880_SHUTTLE,
+	MTK_CHIP_RT2880_MP,
+	MTK_CHIP_RT2883,
+	MTK_CHIP_RT3050,
+	MTK_CHIP_RT3052,
+	MTK_CHIP_RT3350,
+	MTK_CHIP_RT3352,
+	MTK_CHIP_RT3662,
+	MTK_CHIP_RT3883,
+	MTK_CHIP_RT5350,
+	MTK_CHIP_RT6855,
+	MTK_CHIP_RT6856,
+	MTK_CHIP_MT7620,
+	MTK_CHIP_MT7621,
+	MTK_CHIP_MT7628,
+	MTK_CHIP_MT7688,
+	MTK_CHIP_MAX
+};
+
+extern int	mtk_chip_early_detect(void);
+extern uint32_t	mtk_chip_get_cpuclk(void);
+extern uint32_t	mtk_chip_get_sysclk(void);
+extern uint32_t	mtk_chip_get_uartclk(void);
+extern uint32_t	mtk_chip_get_chipid(void);
 
 #endif /* _MTK_SYSCTLREG_H_ */

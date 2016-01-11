@@ -142,9 +142,8 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
     __register_t a2 __unused, __register_t a3 __unused)
 {
 	vm_offset_t kernend;
-	uint32_t platform_counter_freq;
-	phandle_t pclock;
-	int argc = a0, counter_freq_found = 0, i;
+	int argc = a0, i, res;
+	uint32_t cpu_clk;
 	char **argv = (char **)MIPS_PHYS_TO_KSEG0(a1);
 	char **envp = (char **)MIPS_PHYS_TO_KSEG0(a2);
 	void *dtbp;
@@ -164,18 +163,13 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	if (OF_init((void *)dtbp) != 0)
 		while (1);
 
-	pclock = OF_finddevice("/cpus/cpu@0");
-	if (pclock != -1) {
-		if (OF_getencprop(pclock, "clock-frequency",
-		    &platform_counter_freq, sizeof(platform_counter_freq)) <= 0)
-			platform_counter_freq = mtk_chip_get_cpu_freq();
-		else
-			counter_freq_found = 1;
+	if (!(res = mtk_chip_early_detect())) {
+		cpu_clk = mtk_chip_get_cpuclk();
 	} else {
-		platform_counter_freq = mtk_chip_get_cpu_freq();
+		cpu_clk = 1000000000; // no such speed yet
 	}
 
-	mips_timer_early_init(platform_counter_freq / 2);
+	mips_timer_early_init(cpu_clk / 2);
 
 	/* initialize console so that we have printf */
 	boothowto |= (RB_SERIAL | RB_MULTIPLE);	/* Use multiple consoles */
@@ -184,11 +178,11 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 
 	init_static_kenv(boot1_env, sizeof(boot1_env));
 
-	printf("\nFDT DTB at 0x%08x\n", (uint32_t)dtbp);
+	printf("FDT DTB at: 0x%08x\n", (uint32_t)dtbp);
 
-	printf("Using CPU clock frequency of %dMHz (from %s)\n\n",
-		    platform_counter_freq / 1000000,
-		    counter_freq_found ? "DTB" : "chip");
+	printf("CPU  clock: %4dMHz\n", cpu_clk/(1000*1000));
+	printf("SYS  clock: %4dMHz\n", mtk_chip_get_sysclk()/(1000*1000));
+	printf("UART clock: %4dMHz\n\n", mtk_chip_get_uartclk()/(1000*1000));
 
 	printf("U-Boot args (from %d args):\n", argc - 1);
 
@@ -228,5 +222,5 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 
 
 	mips_init();
-	mips_timer_init_params(platform_counter_freq, 2);
+	mips_timer_init_params(cpu_clk, 2);
 }
