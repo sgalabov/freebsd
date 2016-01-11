@@ -14,7 +14,6 @@
 		cpu0: cpu@0 {
 			compatible = "mti,mips74kc";
 			reg = <0>;
-			clock-frequency = <500000000>;
 		};
 	};
 
