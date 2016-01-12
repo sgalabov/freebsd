@@ -7,7 +7,7 @@ mips/mtk/uart_dev_mtk.c		optional uart !uart_ns8250
 mips/mtk/uart_dev_mtk_ns8250.c	optional uart uart_ns8250
 mips/mtk/mtk_intr.c		optional !gic
 mips/mtk/mtk_intr_gic.c		optional gic
-mips/mtk/mtk_spi.c		optional spibus mtk_spi
+mips/mtk/mtk_spi.c		optional spibus !mtk_spi_new
 mips/mtk/mtk_spi_new.c		optional spibus mtk_spi_new
 mips/mtk/mtk_ohci.c		optional usb ohci
 mips/mtk/mtk_ehci.c		optional usb ehci

@@ -8,6 +8,25 @@
 / {
 	model = "MT7621";
 
+	soc {
+            pbus {
+                spi0 {
+                        flash {
+                                compatible = "flash,mx25l";
+                                spi-chipselect = <0>;
+                                #address-cells = <1>;
+                                #size-cells = <1>;
+
+                                slice@0x30000 {
+                                        reg = <0x30000 0x10000>;
+                                        label = "config";
+                                        read-only;
+                                };
+                        };
+                };
+            };
+	};
+
 	chosen {
 		bootargs = "-v";
 		stdin = &uart0;

@@ -104,8 +104,9 @@ device		gpioled
 
 #device		nvram2env
 
-#device		spibus
-#device		mx25l
+device		spibus
+device		mtk_spi_new
+device		mx25l
 
 #device		usb
 #device		ehci
