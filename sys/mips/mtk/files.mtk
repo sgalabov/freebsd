@@ -26,4 +26,4 @@ mips/mtk/mips_pic.c		standard
 
 # Standard MIPS ticker
 mips/mips/tick.c		optional !gic
-mips/mtk/tick.c			optional gic
+mips/mtk/mtk_tick_gic.c		optional gic
