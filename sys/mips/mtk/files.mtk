@@ -4,6 +4,7 @@ mips/mtk/mtk_chip.c		standard
 mips/mtk/mtk_machdep.c		standard
 mips/mtk/mtk_sysctl.c		standard
 mips/mtk/uart_dev_mtk.c		optional uart !uart_ns8250
+mips/mtk/uart_dev_mtk_ns8250.c	optional uart uart_ns8250
 mips/mtk/mtk_intr.c		optional !gic
 mips/mtk/mtk_intr_gic.c		optional gic
 mips/mtk/mtk_spi.c		optional spibus mtk_spi

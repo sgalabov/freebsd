@@ -96,6 +96,7 @@ __FBSDID("$FreeBSD$");
 #define RT_CHIPID_RT5350 0x5350
 #define RT_CHIPID_RT6855 0x6855
 #define RT_CHIPID_MT7620 0x7620
+#define RT_CHIPID_MT7621 0x7621
 
 #ifdef FDT
 /* more specific and new models should go first */
@@ -105,6 +106,7 @@ static const struct ofw_compat_data rt_compat_data[] = {
 	{ "mtk,rt3052-eth", (uintptr_t)RT_CHIPID_RT3052 },
 	{ "mtk,rt305x-eth", (uintptr_t)RT_CHIPID_RT3050 },
 	{ "mtk,mt7620-eth", (uintptr_t)RT_CHIPID_MT7620 },
+	{ "mtk,mt7621-eth", (uintptr_t)RT_CHIPID_MT7621 },
 	{ NULL, (uintptr_t)NULL }
 };
 #endif
@@ -380,8 +382,9 @@ rt_attach(device_t dev)
 	
 	/* Fill in soc-specific registers map */
 	switch(sc->rt_chipid) {
-	  case RT_CHIPID_MT7620:
 	  case RT_CHIPID_RT5350:
+	  case RT_CHIPID_MT7620:
+	  case RT_CHIPID_MT7621:
 	  	device_printf(dev, "RT%x Ethernet MAC (rev 0x%08x)\n",
 	  		sc->rt_chipid, sc->mac_rev);
 		/* RT5350: No GDMA, PSE, CDMA, PPE */
@@ -537,7 +540,8 @@ rt_attach(device_t dev)
 	/* set up interrupt */
 	error = bus_setup_intr(dev, sc->irq, INTR_TYPE_NET | INTR_MPSAFE,
 	    NULL, (sc->rt_chipid == RT_CHIPID_RT5350 ||
-	    sc->rt_chipid == RT_CHIPID_MT7620) ? rt_rt5350_intr : rt_intr,
+	    sc->rt_chipid == RT_CHIPID_MT7620 ||
+	    sc->rt_chipid == RT_CHIPID_MT7621) ? rt_rt5350_intr : rt_intr,
 	    sc, &sc->irqh);
 	if (error != 0) {
 		printf("%s: could not set up interrupt\n",
@@ -835,7 +839,8 @@ rt_init_locked(void *priv)
 
 	/* write back DDONE, 16byte burst enable RX/TX DMA */
 	tmp = FE_TX_WB_DDONE | FE_DMA_BT_SIZE16 | FE_RX_DMA_EN | FE_TX_DMA_EN;
-	if (sc->rt_chipid == RT_CHIPID_MT7620)
+	if (sc->rt_chipid == RT_CHIPID_MT7620 ||
+	    sc->rt_chipid == RT_CHIPID_MT7621)
 		tmp |= (1<<31);
 	RT_WRITE(sc, sc->pdma_glo_cfg, tmp);
 
@@ -847,7 +852,8 @@ rt_init_locked(void *priv)
 
 	/* enable interrupts */
 	if (sc->rt_chipid == RT_CHIPID_RT5350 ||
-	    sc->rt_chipid == RT_CHIPID_MT7620)
+	    sc->rt_chipid == RT_CHIPID_MT7620 ||
+	    sc->rt_chipid == RT_CHIPID_MT7621)
 	  tmp = RT5350_INT_TX_COHERENT |
 	  	RT5350_INT_RX_COHERENT |
 	  	RT5350_INT_TXQ3_DONE |
@@ -949,7 +955,8 @@ rt_stop_locked(void *priv)
 	RT_WRITE(sc, sc->fe_int_enable, 0);
 	
 	if(sc->rt_chipid == RT_CHIPID_RT5350 ||
-	   sc->rt_chipid == RT_CHIPID_MT7620) {
+	   sc->rt_chipid == RT_CHIPID_MT7620 ||
+	   sc->rt_chipid == RT_CHIPID_MT7621) {
 	} else {
 	  /* reset adapter */
 	  RT_WRITE(sc, GE_PORT_BASE + FE_RST_GLO, PSE_RESET);
@@ -1059,22 +1066,29 @@ rt_tx_data(struct rt_softc *sc, struct mbuf *m, int qid)
 
 		/* TODO: this needs to be refined as MT7620 for example has
 		 * a different word3 layout than RT305x and RT5350 (the last
-		 * one doesn't use word3 at all).
+		 * one doesn't use word3 at all). And so does MT7621...
 		 */
 
-		/* Set destination */
-		if (sc->rt_chipid != RT_CHIPID_MT7620)
-			desc->dst = (TXDSCR_DST_PORT_GDMA1);
+		if (sc->rt_chipid != RT_CHIPID_MT7621) {
+			/* Set destination */
+			if (sc->rt_chipid != RT_CHIPID_MT7620)
+			    desc->dst = (TXDSCR_DST_PORT_GDMA1);
 
-		if ((ifp->if_capenable & IFCAP_TXCSUM) != 0)
-			desc->dst |= (TXDSCR_IP_CSUM_GEN|TXDSCR_UDP_CSUM_GEN|
-			    TXDSCR_TCP_CSUM_GEN);
-		/* Set queue id */
-		desc->qn = qid;
-		/* No PPPoE */
-		desc->pppoe = 0;
-		/* No VLAN */
-		desc->vid = 0;
+			if ((ifp->if_capenable & IFCAP_TXCSUM) != 0)
+				desc->dst |= (TXDSCR_IP_CSUM_GEN |
+				    TXDSCR_UDP_CSUM_GEN | TXDSCR_TCP_CSUM_GEN);
+			/* Set queue id */
+			desc->qn = qid;
+			/* No PPPoE */
+			desc->pppoe = 0;
+			/* No VLAN */
+			desc->vid = 0;
+		} else {
+			desc->vid = 0;
+			desc->pppoe = 0;
+			desc->qn = 0;
+			desc->dst = 2;
+		}
 
 		desc->sdp0 = htole32(dma_seg[i].ds_addr);
 		desc->sdl0 = htole16(dma_seg[i].ds_len |
@@ -1718,7 +1732,8 @@ rt_tx_done_task(void *context, int pending)
 	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
 	if(sc->rt_chipid == RT_CHIPID_RT5350 ||
-	   sc->rt_chipid == RT_CHIPID_MT7620)
+	   sc->rt_chipid == RT_CHIPID_MT7620 ||
+	   sc->rt_chipid == RT_CHIPID_MT7621)
 	  intr_mask = (
 		RT5350_INT_TXQ3_DONE |
 		RT5350_INT_TXQ2_DONE |
@@ -2035,7 +2050,8 @@ rt_watchdog(struct rt_softc *sc)
 	int ntries;
 #endif
 	if(sc->rt_chipid != RT_CHIPID_RT5350 &&
-	   sc->rt_chipid != RT_CHIPID_MT7620) {
+	   sc->rt_chipid != RT_CHIPID_MT7620 &&
+	   sc->rt_chipid != RT_CHIPID_MT7621) {
 		tmp = RT_READ(sc, PSE_BASE + CDMA_OQ_STA);
 
 		RT_DPRINTF(sc, RT_DEBUG_WATCHDOG,

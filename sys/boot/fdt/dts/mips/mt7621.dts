@@ -1,0 +1,18 @@
+/*
+ * Copyright (c) 2016, Stanislav Galabov
+ */
+
+/dts-v1/;
+/include/ "mt7621.dtsi"
+
+/ {
+	model = "MT7621";
+
+	chosen {
+		bootargs = "-v";
+		stdin = &uart0;
+		stdout = &uart0;
+	};
+
+};
+

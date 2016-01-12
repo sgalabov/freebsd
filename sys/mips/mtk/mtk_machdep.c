@@ -103,7 +103,9 @@ mips_init(void)
 		realmem = btoc(strtol(memsize, NULL, 0) << 20);
 	else
 		realmem = btoc(32 << 20);
-	
+
+	if (ctob(realmem) > (448 << 20))
+		realmem = btoc(448 << 20);
 
 	bootverbose = 1;
 
@@ -134,7 +136,11 @@ void
 platform_reset(void)
 {
 
+#if 0
 	mtk_chip_reset();
+#else
+	*((volatile uint32_t *)0xbe000034) = 1;
+#endif
 }
 
 void

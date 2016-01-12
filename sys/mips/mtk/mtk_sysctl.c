@@ -655,7 +655,7 @@ mtk_detect_cpuclk_mt7621(bus_space_tag_t bst, bus_space_handle_t bsh)
 		 * We need to temporarily map the MEMCTRL space, which is 0x5000
 		 * away from the SYSCTL space
 		 */
-		if (bus_space_map(bst, bsh + 0x5000, 0x1000, 0, &memh))
+		if (bus_space_map(bst, 0x1e005000, 0x1000, 0, &memh))
 			goto out_err;
 		div = bus_space_read_4(bst, memh, 0x648);
 		bus_space_unmap(bst, memh, 0x1000);
