@@ -77,11 +77,11 @@ struct mtk_gpio_softc {
 	void			*intrhand;
 
 	uint32_t		num_pins;
-	uint8_t			do_remap;
+	uint32_t		bank_id;
 };
 
 static struct resource_spec mtk_gpio_spec[] = {
-	{ SYS_RES_MEMORY, 0, RF_ACTIVE },
+	{ SYS_RES_MEMORY, 0, RF_ACTIVE | RF_SHAREABLE },
 	{ SYS_RES_IRQ,    0, RF_ACTIVE | RF_SHAREABLE },
 	{ -1, 0 }
 };
@@ -102,16 +102,16 @@ static int mtk_gpio_intr(void *arg);
 #define MTK_READ_4(sc, reg)		bus_read_4((sc)->res[0], (reg))
 
 /* Register definitions */
-#define GPIO_PIOINT(_sc)		0x0000
-#define GPIO_PIOEDGE(_sc)		0x0004
-#define GPIO_PIORENA(_sc)		0x0008
-#define GPIO_PIOFENA(_sc)		0x000C
-#define GPIO_PIODATA(_sc)		((_sc)->do_remap ? 0x0020 : 0x0010)
-#define GPIO_PIODIR(_sc)		((_sc)->do_remap ? 0x0024 : 0x0014)
-#define GPIO_PIOPOL(_sc)		((_sc)->do_remap ? 0x0028 : 0x0018)
-#define GPIO_PIOSET(_sc)		((_sc)->do_remap ? 0x002C : 0x001C)
-#define GPIO_PIORESET(_sc)		((_sc)->do_remap ? 0x0030 : 0x0020)
-#define GPIO_PIOTOG(_sc)		((_sc)->do_remap ? 0x0034 : 0x0024)
+#define GPIO_REG(_sc, _reg)		((_reg) + (_sc)->bank_id * 0x4)
+#define GPIO_PIOINT(_sc)		GPIO_REG((_sc), 0x0090)
+#define GPIO_PIOEDGE(_sc)		GPIO_REG((_sc), 0x00A0)
+#define GPIO_PIORENA(_sc)		GPIO_REG((_sc), 0x0050)
+#define GPIO_PIOFENA(_sc)		GPIO_REG((_sc), 0x0060)
+#define GPIO_PIODATA(_sc)		GPIO_REG((_sc), 0x0020)
+#define GPIO_PIODIR(_sc)		GPIO_REG((_sc), 0x0000)
+#define GPIO_PIOPOL(_sc)		GPIO_REG((_sc), 0x0010)
+#define GPIO_PIOSET(_sc)		GPIO_REG((_sc), 0x0030)
+#define GPIO_PIORESET(_sc)		GPIO_REG((_sc), 0x0040)
 
 static int
 mtk_gpio_probe(device_t dev)
@@ -121,7 +121,7 @@ mtk_gpio_probe(device_t dev)
 	if (!ofw_bus_status_okay(dev))
 		return (ENXIO);
 
-	if (!ofw_bus_is_compatible(dev, "mtk,mtk-gpio"))
+	if (!ofw_bus_is_compatible(dev, "mtk,mtk-gpio-new"))
 		return (ENXIO);
 
 	node = ofw_bus_get_node(dev);
@@ -214,7 +214,7 @@ mtk_gpio_attach(device_t dev)
 {
 	struct mtk_gpio_softc *sc;
 	phandle_t node;
-	uint32_t i, num_pins;
+	uint32_t i, num_pins, bank_id;
 
 	sc = device_get_softc(dev);
 	sc->dev = dev;
@@ -233,16 +233,14 @@ mtk_gpio_attach(device_t dev)
 	if (OF_hasprop(node, "resets"))
 		mtk_chip_reset_device(dev);
 
-	if (OF_hasprop(node, "mtk,register-gap")) {
-		device_printf(dev, "<register gap>\n");
-		sc->do_remap = 1;
-	} else {
-		device_printf(dev, "<no register gap>\n");
-		sc->do_remap = 0;
-	}
+	if (OF_hasprop(node, "mtk,bank-id") && (OF_getencprop(node,
+	    "mtk,bank-id", &bank_id, sizeof(bank_id)) >= 0))
+		sc->bank_id = bank_id;
+	else
+		sc->bank_id = device_get_unit(dev);
 
 	if (OF_hasprop(node, "mtk,num-pins") && (OF_getencprop(node,
-	    "mtk,num-pins", &num_pins, sizeof(num_pins))
+	    "mtk,num-pins", &num_pins, sizeof(num_pins)) >= 0))
 		sc->num_pins = num_pins;
 	else
 		sc->num_pins = MTK_GPIO_PINS;
@@ -424,12 +422,18 @@ static int
 mtk_gpio_pin_toggle(device_t dev, uint32_t pin)
 {
 	struct mtk_gpio_softc *sc = device_get_softc(dev);
+	uint32_t val;
 
 	if (pin >= sc->num_pins || !(sc->pins[pin].pin_flags & GPIO_PIN_OUTPUT))
 		return (EINVAL);
 
 	MTK_GPIO_LOCK(sc);
-	MTK_WRITE_4(sc, GPIO_PIOTOG(sc), (1u << pin));
+	val = MTK_READ_4(sc, GPIO_PIODATA(sc));
+	val &= (1u << pin);
+	if (val)
+		MTK_WRITE_4(sc, GPIO_PIORESET(sc), (1u << pin));
+	else
+		MTK_WRITE_4(sc, GPIO_PIOSET(sc), (1u << pin));
 	MTK_GPIO_UNLOCK(sc);
 
 	return (0);

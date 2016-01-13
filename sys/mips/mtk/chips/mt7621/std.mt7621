@@ -11,3 +11,5 @@ options		RT305X_UBOOT
 
 device		uart
 device		gic
+
+device		mtk_gpio_new

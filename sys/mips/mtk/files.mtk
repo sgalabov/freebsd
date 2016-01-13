@@ -13,7 +13,8 @@ mips/mtk/mtk_ohci.c		optional usb ohci
 mips/mtk/mtk_ehci.c		optional usb ehci
 mips/mtk/mtk_dotg.c		optional usb dwcotg
 mips/mtk/mtk_pci.c		optional pci
-mips/mtk/mtk_gpio.c		optional gpio
+mips/mtk/mtk_gpio.c		optional gpio !mtk_gpio_new
+mips/mtk/mtk_gpio_new.c		optional gpio mtk_gpio_new
 mips/mtk/if_rt.c		optional rt
 mips/mtk/fdt_reset.c		optional fdt fdt_reset
 mips/mtk/fdt_reset_if.m		optional fdt fdt_reset
