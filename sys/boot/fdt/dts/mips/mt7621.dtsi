@@ -74,6 +74,42 @@
 			reg = <0x0 0x100>;
 		    };
 
+		    gpio0: gpio@0 {
+                        compatible = "mtk,mtk-gpio-new";
+                        reg = <0x600 0x100>;
+
+                        gpio-controller;
+                        #gpio-cells = <2>;
+
+                        interrupt-controller;
+                        #interrupt-cells = <2>;
+
+                        interrupt-parent = <&intc>;
+                        interrupts = <6>;
+
+                        mtk,num-pins = <32>;
+
+                        status = "okay";
+                    };
+
+                    gpio1: gpio@1 {
+                        compatible = "mtk,mtk-gpio-new";
+                        reg = <0x600 0x100>;
+
+                        gpio-controller;
+                        #gpio-cells = <2>;
+
+                        interrupt-controller;
+                        #interrupt-cells = <2>;
+
+                        interrupt-parent = <&intc>;
+                        interrupts = <6>;
+
+                        mtk,num-pins = <17>;
+
+                        status = "okay";
+                    };
+
 		    uart0: uart@c00 {
 			device_type = "serial";
 			compatible = "mtk,mtk-uart-ns8250";
