@@ -36,7 +36,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/ofw/ofw_bus.h>
 
 #include <dev/fdt/fdt_clock.h>
-#include <mips/mtk/fdt_reset.h>
+#include <dev/fdt/fdt_reset.h>
 
 /* Prototypes */
 void mtk_chip_print_basic_identity(device_t);
@@ -127,10 +127,10 @@ mtk_chip_reset_device(device_t dev)
 {
 	int res;
 
-	res = fdt_reset_apply_all(dev);
+	res = fdt_reset_assert_all(dev);
 	if (res == 0) {
 		DELAY(100000);
-		res = fdt_reset_remove_all(dev);
+		res = fdt_reset_deassert_all(dev);
 		if (res == 0)
 			DELAY(100000);
 	}
@@ -142,11 +142,11 @@ int
 mtk_chip_apply_reset(device_t dev)
 {
 
-	return (fdt_reset_apply_all(dev));
+	return (fdt_reset_assert_all(dev));
 }
 
 int mtk_chip_remove_reset(device_t dev)
 {
 
-	return (fdt_reset_remove_all(dev));
+	return (fdt_reset_deassert_all(dev));
 }

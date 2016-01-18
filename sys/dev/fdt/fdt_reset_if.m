@@ -42,7 +42,7 @@ INTERFACE fdt_reset;
 # Enable/assert/apply the specified reset.
 # Returns 0 on success or a standard errno value.
 #
-METHOD int apply {
+METHOD int assert {
 	device_t	provider;
 	int		index;
 };
@@ -51,7 +51,7 @@ METHOD int apply {
 # Disable/de-assert/remove the specified reset.
 # Returns 0 on success or a standard errno value.
 #
-METHOD int remove {
+METHOD int deassert {
 	device_t	provider;
 	int		index;
 };

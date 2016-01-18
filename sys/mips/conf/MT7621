@@ -61,7 +61,8 @@ options 	FFS			#Berkeley Fast Filesystem
 device		geom_uncompress
 options		GEOM_UNCOMPRESS
 options		MD_ROOT
-options		ROOTDEVNAME=\"ufs:md0.uncompress\"
+#options		ROOTDEVNAME=\"ufs:md0.uncompress\"
+options         ROOTDEVNAME=\"ufs:/dev/ada0s1\"
 
 # Options for making kernel less hangry
 makeoptions	INLINE_LIMIT=1024
@@ -117,7 +118,11 @@ device		mx25l
 #device		scbus
 #options 	SCSI_DELAY=1000		# Delay (in ms) before probing SCSI
 
-#device		pci
+device		pci
+device          ahci
+device          scbus
+device          ada
+device          pass
 
 device		fdt_clock
 device		fdt_pinctrl

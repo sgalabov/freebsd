@@ -59,6 +59,82 @@
 			reg = <0x0 0x100>;
 		    };
 
+		    gpio0: gpio@600 {
+                        compatible = "mtk,mtk-gpio";
+                        reg = <0x600 0x34>;
+
+                        gpio-controller;
+                        #gpio-cells = <2>;
+
+                        interrupt-controller;
+                        #interrupt-cells = <2>;
+
+                        interrupt-parent = <&intc>;
+                        interrupts = <6>;
+
+                        clocks = <&sysc 13>;
+                        resets = <&sysc 13>;
+
+                        mtk,num-pins = <24>;
+                        mtk,register-gap;
+
+                        status = "okay";
+                    };
+
+                    gpio1: gpio@638 {
+                        compatible = "mtk,mtk-gpio";
+                        reg = <0x638 0x24>;
+
+                        gpio-controller;
+                        #gpio-cells = <2>;
+
+                        interrupt-controller;
+                        #interrupt-cells = <2>;
+
+                        interrupt-parent = <&intc>;
+                        interrupts = <6>;
+
+                        mtk,num-pins = <16>;
+
+                        status = "okay";
+                    };
+
+		    gpio2: gpio@660 {
+                        compatible = "mtk,mtk-gpio";
+                        reg = <0x660 0x24>;
+
+                        gpio-controller;
+                        #gpio-cells = <2>;
+
+                        interrupt-controller;
+                        #interrupt-cells = <2>;
+
+                        interrupt-parent = <&intc>;
+                        interrupts = <6>;
+
+                        mtk,num-pins = <32>;
+
+                        status = "okay";
+                    };
+
+                    gpio3: gpio@688 {
+                        compatible = "mtk,mtk-gpio";
+                        reg = <0x688 0x24>;
+
+                        gpio-controller;
+                        #gpio-cells = <2>;
+
+                        interrupt-controller;
+                        #interrupt-cells = <2>;
+
+                        interrupt-parent = <&intc>;
+                        interrupts = <6>;
+
+                        mtk,num-pins = <24>;
+
+                        status = "okay";
+                    };
+
 		    uart0: uart@c00 {
 			device_type = "serial";
 			compatible = "mtk,mtk-uart";
@@ -69,8 +145,28 @@
 			interrupts = <12>;
 			interrupt-parent = <&intc>;
 		    };
-
 	        };
+
+		ehci {
+                        compatible = "usb-ehci";
+                        reg = <0x101C0000 0x1000>;
+                        interrupts = <18>;
+                        interrupt-parent = <&intc>;
+                        status = "okay";
+                        clocks = <&sysc 20>, <&sysc 18>;
+                        resets = <&sysc 25>, <&sysc 22>;
+                };
+
+		pci {
+                    compatible = "mtk,mtk-pci";
+                    reg = <0x10140000 0x20000>;
+                    ranges = <1 0x10160000 0x00010000
+                              2 0x20000000 0x10000000>;
+                    interrupts = <4>;
+                    interrupt-parent = <&cpuintc>;
+                    status = "okay";
+                };
+
 		rt {
                 	compatible = "mtk,rt3052-eth";
                         reg = <0x10100000 0x10000>;

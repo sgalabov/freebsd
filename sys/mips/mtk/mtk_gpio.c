@@ -242,7 +242,7 @@ mtk_gpio_attach(device_t dev)
 	}
 
 	if (OF_hasprop(node, "mtk,num-pins") && (OF_getencprop(node,
-	    "mtk,num-pins", &num_pins, sizeof(num_pins))
+	    "mtk,num-pins", &num_pins, sizeof(num_pins)) >= 0))
 		sc->num_pins = num_pins;
 	else
 		sc->num_pins = MTK_GPIO_PINS;

@@ -101,7 +101,7 @@ mtk_chip_wait_pci_phy_busy(struct mtk_pci_softc *sc)
 	uint32_t reg_value = 0, retry = 0;
 
 	while (retry++ < MAX_RETRIES) {
-		reg_value = RT_READ32(sc, MTK_PCI_PHY0_CFG);
+		reg_value = MT_READ32(sc, MTK_PCI_PHY0_CFG);
 		if (reg_value & (0x80000000))
 			DELAY(100000);
 		else
@@ -126,7 +126,7 @@ mtk_chip_pci_phy(struct mtk_pci_softc *sc, uint32_t addr, uint32_t val)
 	reg_val |= (val);		// Data is at bit 0
 	reg_val |= (addr) << 8;	// Address is at bit 8
 
-	RT_WRITE32(sc, MTK_PCI_PHY0_CFG, reg_val);
+	MT_WRITE32(sc, MTK_PCI_PHY0_CFG, reg_val);
 	DELAY(1000);
 
 	if(mtk_chip_wait_pci_phy_busy(sc))
@@ -195,20 +195,22 @@ mtk_chip_pci_init(device_t dev)
 	tmp|= (1<<31);
 	mtk_sysctl_set(SYSCTL_PPLL_DRV, tmp);
 
-	RT_WRITE32(sc, MTK_PCI_MEMBASE, sc->sc_mem_base);
-	RT_WRITE32(sc, MTK_PCI_IOBASE, sc->sc_io_base);
-
-	RT_WRITE32(sc, MTK_PCI_PCICFG, RT_READ32(sc, 0) & ~(1<<1));
+	// Lift reset
+	MT_WRITE32(sc, MTK_PCI_PCICFG, MT_READ32(sc, 0) & ~(1<<1));
 	DELAY(500000);
-	if ((RT_READ32(sc, MTK_PCI_PCIE0_STATUS) & 0x1) == 1)
+	if ((MT_READ32(sc, MTK_PCI_PCIE0_STATUS) & 0x1) == 1)
 		sc->pcie_link_status = 1;
 	else
 		sc->pcie_link_status = 0;
 
-	RT_WRITE32(sc, MTK_PCI_PCIE0_BAR0SETUP, 0x7FFF0001);
-	RT_WRITE32(sc, MTK_PCI_PCIE0_BAR1SETUP, 0x00000000);
-	RT_WRITE32(sc, MTK_PCI_PCIE0_IMBASEBAR0, 0x00000000);
-	RT_WRITE32(sc, MTK_PCI_PCIE0_CLASS, 0x06040001);
+	// The code below should probably go into the main pci driver
+	MT_WRITE32(sc, MTK_PCI_MEMBASE, sc->sc_mem_base);
+	MT_WRITE32(sc, MTK_PCI_IOBASE, sc->sc_io_base);
+
+	MT_WRITE32(sc, MTK_PCI_PCIE0_BAR0SETUP, 0x7FFF0001);
+	MT_WRITE32(sc, MTK_PCI_PCIE0_BAR1SETUP, 0x00000000);
+	MT_WRITE32(sc, MTK_PCI_PCIE0_IMBASEBAR0, 0x00000000);
+	MT_WRITE32(sc, MTK_PCI_PCIE0_CLASS, 0x06040001);
 
 	tmp = mtk_pci_read_config(dev, 0, 0, 0, 4, 4);
 	mtk_pci_write_config(dev, 0, 0, 0, 4, tmp | 0x7, 4);

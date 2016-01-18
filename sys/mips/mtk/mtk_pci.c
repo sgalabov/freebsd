@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2015 Stanislav Galabov.
+ * Copyright (c) 2016 Stanislav Galabov.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -53,7 +53,7 @@ __FBSDID("$FreeBSD$");
 
 #include <machine/bus.h>
 #include <machine/cpu.h>
-#include <machine/intr_machdep.h>
+#include <machine/intr.h>
 #include <machine/pmap.h>
 
 #include <dev/pci/pcivar.h>
@@ -62,12 +62,15 @@ __FBSDID("$FreeBSD$");
 #include <dev/pci/pcib_private.h>
 #include "pcib_if.h"
 
+#include <dev/fdt/fdt_common.h>
 #include <dev/ofw/openfirm.h>
 #include <dev/ofw/ofw_bus.h>
 #include <dev/ofw/ofw_bus_subr.h>
 
 #include <mips/mtk/mtk_pcireg.h>
 #include <mips/mtk/mtk_chip.h>
+
+#include "pic_if.h"
 
 struct mtx mtk_pci_mtx;
 MTX_SYSINIT(mtk_pci_mtx, &mtk_pci_mtx, "MTK PCI/PCIe mutex", MTX_SPIN);
@@ -76,6 +79,111 @@ static int mtk_pcib_init(device_t, int, int);
 static int mtk_pci_intr(void *);
 
 static struct mtk_pci_softc *mt_sc = NULL;
+
+static struct resource_spec mtk_pci_spec[] = {
+	{ SYS_RES_MEMORY,	0,	RF_ACTIVE },
+	{ SYS_RES_IRQ,		0,	RF_ACTIVE },
+	{ SYS_RES_IRQ,		1,	RF_ACTIVE | RF_OPTIONAL },
+	{ SYS_RES_IRQ,		2,	RF_ACTIVE | RF_OPTIONAL },
+	{ -1, 0, 0 }
+};
+
+struct mtk_pci_range {
+	u_long	base;
+	u_long	len;
+};
+
+#if 0
+#define FDT_RANGES_CELLS	((3 + 3 + 2) * 2)
+#else
+#define FDT_RANGES_CELLS	(3 * 2)
+#endif
+
+static void
+mtk_pci_range_dump(struct mtk_pci_range *range)
+{
+#ifdef DEBUG
+	printf("\n");
+	printf("  base = 0x%08lx\n", range->base);
+	printf("  len  = 0x%08lx\n", range->len);
+#endif
+}
+
+static int
+mtk_pci_ranges_decode(phandle_t node, struct mtk_pci_range *io_space,
+    struct mtk_pci_range *mem_space)
+{
+	struct mtk_pci_range *pci_space;
+	pcell_t ranges[FDT_RANGES_CELLS];
+	pcell_t *rangesptr;
+	pcell_t cell0, cell1, cell2;
+	int tuples, i, rv, len;
+
+	/*
+	 * Retrieve 'ranges' property.
+	 */
+	if (!OF_hasprop(node, "ranges"))
+		return (EINVAL);
+
+	len = OF_getproplen(node, "ranges");
+	if (len > sizeof(ranges))
+		return (ENOMEM);
+
+	if (OF_getprop(node, "ranges", ranges, sizeof(ranges)) <= 0)
+		return (EINVAL);
+
+	tuples = len / (sizeof(pcell_t) * 3);
+
+	/*
+	 * Initialize the ranges so that we don't have to worry about
+	 * having them all defined in the FDT. In particular, it is
+	 * perfectly fine not to want I/O space on PCI busses.
+	 */
+	bzero(io_space, sizeof(*io_space));
+	bzero(mem_space, sizeof(*mem_space));
+
+	rangesptr = &ranges[0];
+	for (i = 0; i < tuples; i++) {
+		cell0 = fdt_data_get((void *)rangesptr, 1);
+		rangesptr++;
+		cell1 = fdt_data_get((void *)rangesptr, 1);
+		rangesptr++;
+		cell2 = fdt_data_get((void *)rangesptr, 1);
+		rangesptr++;
+
+		if (cell0 == 2) {
+			pci_space = mem_space;
+		} else if (cell0 == 1) {
+			pci_space = io_space;
+		} else {
+			rv = ERANGE;
+			goto out;
+		}
+
+		pci_space->base = cell1;
+		pci_space->len = cell2;
+	}
+
+	rv = 0;
+out:
+	return (rv);
+}
+
+static int
+mtk_pci_ranges(phandle_t node, struct mtk_pci_range *io_space,
+    struct mtk_pci_range *mem_space)
+{
+	int err;
+
+	if ((err = mtk_pci_ranges_decode(node, io_space, mem_space)) != 0) {
+		return (err);
+	}
+
+	mtk_pci_range_dump(io_space);
+	mtk_pci_range_dump(mem_space);
+
+	return (0);
+}
 
 static int
 mtk_pci_probe(device_t dev)
@@ -96,53 +204,120 @@ static int
 mtk_pci_attach(device_t dev)
 {
 	struct mtk_pci_softc *sc = device_get_softc(dev);
+	struct mtk_pci_range io_space, mem_space;
+	phandle_t node;
+	intptr_t xref;
+	int i;
 
-	mt_sc = sc;
+	sc->has_pci = 0;
+
+	if (bus_alloc_resources(dev, mtk_pci_spec, sc->pci_res)) {
+		device_printf(dev, "could not allocate resources\n");
+		return (ENXIO);
+	}
+
+	/* See how many interrupts we were given */
+	sc->sc_num_irq = 0;
+	for (i = 1; i < 4; i++)
+		if (sc->pci_res[i] != NULL)
+			sc->sc_num_irq++;
+	sc->sc_irq_start = MTK_PCIE0_IRQ;
+	sc->sc_irq_end = sc->sc_irq_start + sc->sc_num_irq - 1;
 
 	sc->sc_dev = dev;
-	sc->sc_mem_base = 0x20000000;
-	sc->sc_mem_size = 0x10000000;
-	sc->sc_io_base = 0x10160000;
-	sc->sc_io_size = 0x10000;
+	mt_sc = sc;
+	node = ofw_bus_get_node(dev);
+	xref = OF_xref_from_node(node);
 
-	sc->sc_bsh = MIPS_PHYS_TO_KSEG1(0x10140000);
-	sc->sc_bst = mips_bus_space_generic;
+	if (mtk_pci_ranges(node, &io_space, &mem_space)) {
+		device_printf(dev, "could not retrieve 'ranges' data\n");
+		goto cleanup_res;
+	}
+
+	sc->sc_io_base = io_space.base;
+	sc->sc_io_size = io_space.len;
+	sc->sc_mem_base = mem_space.base;
+	sc->sc_mem_size = mem_space.len;
 
 	sc->sc_mem_rman.rm_type = RMAN_ARRAY;
 	sc->sc_mem_rman.rm_descr = "mtk pci memory window";
 	if (rman_init(&sc->sc_mem_rman) != 0 ||
 	    rman_manage_region(&sc->sc_mem_rman, sc->sc_mem_base,
-		sc->sc_mem_base + sc->sc_mem_size - 1) != 0) {
-		panic("%s: failed to set up memory rman", __FUNCTION__);
+	    sc->sc_mem_base + sc->sc_mem_size - 1) != 0) {
+		device_printf(dev, "failed to setup memory rman\n");
+		goto cleanup_res;
 	}
 
 	sc->sc_io_rman.rm_type = RMAN_ARRAY;
 	sc->sc_io_rman.rm_descr = "mtk pci io window";
 	if (rman_init(&sc->sc_io_rman) != 0 ||
 	    rman_manage_region(&sc->sc_io_rman, sc->sc_io_base,
-		sc->sc_io_base + sc->sc_io_size - 1) != 0) {
-		panic("%s: failed to set up io rman", __FUNCTION__);
+	    sc->sc_io_base + sc->sc_io_size - 1) != 0) {
+		device_printf(dev, "failed to setup io rman\n");
+		goto cleanup_res;
 	}
 
 	sc->sc_irq_rman.rm_type = RMAN_ARRAY;
 	sc->sc_irq_rman.rm_descr = "mtk pci irqs";
 	if (rman_init(&sc->sc_irq_rman) != 0 ||
-	    rman_manage_region(&sc->sc_irq_rman, MTK_PCIE0_IRQ,
-		MTK_PCIE0_IRQ) != 0) {
-		panic("%s: failed to set up irq rman", __FUNCTION__);
+	    rman_manage_region(&sc->sc_irq_rman, sc->sc_irq_start,
+	    sc->sc_irq_end) != 0) {
+		device_printf(dev, "failed to setup irq rman\n");
+		goto cleanup_res;
 	}
 
-	if(mtk_chip_pci_phy_init(dev) || mtk_chip_pci_init(dev))
-		return (ENXIO);
+	if(mtk_chip_pci_phy_init(dev) || mtk_chip_pci_init(dev)) {
+		device_printf(dev, "pci phy init failed\n");
+		goto cleanup_rman;
+	}
 
-	cpu_establish_hardintr("pci", mtk_pci_intr, NULL, sc,
-		MTK_PCI_INTR_PIN, INTR_TYPE_MISC | INTR_EXCL, NULL);
+	if (intr_pic_register(dev, xref) != 0) {
+		device_printf(dev, "could not register PIC\n");
+		goto cleanup_rman;
+	}
+
+	for (i = 1; i < 1 + sc->sc_num_irq; i++) {
+		if (bus_setup_intr(dev, sc->pci_res[i], INTR_TYPE_MISC,
+		    mtk_pci_intr, NULL, sc, &sc->pci_intrhand[i - 1])) {
+			device_printf(dev, "could not setup intr handler %d\n",
+			    i);
+			goto cleanup;
+		}
+	}
+
+	device_printf(dev, "interrupts registered\n");
 
 	mtk_pcib_init(dev, 0, PCI_SLOTMAX);
 
-	device_add_child(dev, "pci", -1);
+	if (device_add_child(dev, "pci", -1) == NULL) {
+		device_printf(dev, "could not attach pci bus\n");
+		goto cleanup;
+	}
 
-	return (bus_generic_attach(dev));
+	if (bus_generic_attach(dev)) {
+		device_printf(dev, "could not attach to bus\n");
+		goto cleanup;
+	}
+
+	return (0);
+
+cleanup:
+#ifdef notyet
+	intr_pic_unregister(dev, xref);
+#endif
+	for (i = 1; i < 4; i++) {
+		if (sc->pci_intrhand[i - 1] != NULL)
+			bus_teardown_intr(dev, sc->pci_res[i],
+			    sc->pci_intrhand[i - 1]);
+	}
+cleanup_rman:
+	rman_fini(&sc->sc_irq_rman);
+	rman_fini(&sc->sc_io_rman);
+	rman_fini(&sc->sc_mem_rman);
+cleanup_res:
+	mt_sc = NULL;
+	bus_release_resources(dev, mtk_pci_spec, sc->pci_res);
+	return (ENXIO);
 }
 
 static int
@@ -185,7 +360,11 @@ mtk_pci_alloc_resource(device_t bus, device_t child, int type, int *rid,
 	struct mtk_pci_softc *sc = device_get_softc(bus);
 	struct resource *rv;
 	struct rman *rm;
+#if 0
 	vm_offset_t va;
+#endif
+
+	printf("%s: entered\n", __FUNCTION__);
 
 	switch (type) {
 	case SYS_RES_IRQ:
@@ -198,16 +377,20 @@ mtk_pci_alloc_resource(device_t bus, device_t child, int type, int *rid,
 		rm = &sc->sc_mem_rman;
 		break;
 	default:
+		printf("%s: %d\n", __FUNCTION__, 1);
 		return (NULL);
 	}
 
 	rv = rman_reserve_resource(rm, start, end, count, flags, child);
 
-	if (rv == NULL)
+	if (rv == NULL) {
+		printf("%s: %d (%s)\n", __FUNCTION__, 2, type == SYS_RES_IRQ ? "IRQ" : type == SYS_RES_MEMORY ? "MEM" : "IO" );
 		return (NULL);
+	}
 
 	rman_set_rid(rv, *rid);
 
+#if 0 /* mips bus_space code should now take care of this */
 	if (type != SYS_RES_IRQ) {
 		if (type == SYS_RES_MEMORY) {
 			va = (vm_offset_t)pmap_mapdev(start, count);
@@ -218,17 +401,21 @@ mtk_pci_alloc_resource(device_t bus, device_t child, int type, int *rid,
 		rman_set_virtual(rv, (void *)va);
 		rman_set_bustag(rv, mips_bus_space_generic);
 	}
+#endif
 
-	if (flags & RF_ACTIVE) {
+	if ((flags & RF_ACTIVE) && type != SYS_RES_IRQ) {
 		if (bus_activate_resource(child, type, *rid, rv)) {
 			rman_release_resource(rv);
 			return (NULL);
 		}
 	}
 
+	printf("%s: %d (%s)\n", __FUNCTION__, 3, rv == NULL ? "NULL" : "NONNULL");
+
 	return (rv);
 }
 
+#if 0
 static int
 mtk_pci_activate_resource(device_t bus, device_t child, int type, int rid,
 	struct resource *r)
@@ -236,6 +423,7 @@ mtk_pci_activate_resource(device_t bus, device_t child, int type, int rid,
 
 	return rman_activate_resource(r);
 }
+#endif
 
 static inline int
 mtk_idx_to_irq(int idx)
@@ -258,17 +446,16 @@ mtk_irq_to_idx(int irq)
 static void
 mtk_pci_mask_irq(void *source)
 {
-
-	RT_WRITE32(mt_sc, MTK_PCI_PCIENA,
-		RT_READ32(mt_sc, MTK_PCI_PCIENA) & ~(1<<((int)source)));
+	MT_WRITE32(mt_sc, MTK_PCI_PCIENA,
+		MT_READ32(mt_sc, MTK_PCI_PCIENA) & ~(1<<((int)source)));
 }
 
 static void
 mtk_pci_unmask_irq(void *source)
 {
 
-	RT_WRITE32(mt_sc, MTK_PCI_PCIENA,
-		RT_READ32(mt_sc, MTK_PCI_PCIENA) | (1<<((int)source)));
+	MT_WRITE32(mt_sc, MTK_PCI_PCIENA,
+		MT_READ32(mt_sc, MTK_PCI_PCIENA) | (1<<((int)source)));
 }
 
 static int
@@ -280,10 +467,16 @@ mtk_pci_setup_intr(device_t bus, device_t child, struct resource *ires,
 	struct intr_event *event;
 	int irq, error, irqidx;
 
+	printf("%s: %d\n", __FUNCTION__, 1);
+
 	irq = rman_get_start(ires);
 
-	if ((irqidx = mtk_irq_to_idx(irq)) == -1)
-		panic("%s: bad irq %d", __FUNCTION__, irq);
+	if (irq < sc->sc_irq_start || irq > sc->sc_irq_end) {
+		printf("%s: %d\n", __FUNCTION__, 2);
+		return (EINVAL);
+	}
+
+	irqidx = irq - sc->sc_irq_start;
 
 	event = sc->sc_eventstab[irqidx];
 	if (event == NULL) {
@@ -296,8 +489,10 @@ mtk_pci_setup_intr(device_t bus, device_t child, struct resource *ires,
 	//		sc->sc_intr_counter[irqidx] =
 	//		    mips_intrcnt_create(event->ie_name);
 		}
-		else
+		else {
+			printf("%s: %d\n", __FUNCTION__, 3);
 			return (error);
+		}
 	}
 
 	intr_event_add_handler(event, device_get_nameunit(child), filt,
@@ -306,6 +501,8 @@ mtk_pci_setup_intr(device_t bus, device_t child, struct resource *ires,
 	//mips_intrcnt_setname(sc->sc_intr_counter[irqidx], event->ie_fullname);
 
 	mtk_pci_unmask_irq((void*)irq);
+
+	printf("%s: %d\n", __FUNCTION__, 4);
 
 	return (0);
 }
@@ -338,6 +535,8 @@ mtk_pci_make_addr(int bus, int slot, int func, int reg)
 {
 	uint32_t addr;
 
+	//reg &= 0xff;
+
 	addr = (((reg & 0xf00) >> 8) << 24) | (bus << 16) | (slot << 11) |
 		(func << 8) | (reg & 0xfc) | (1 << 31);
 
@@ -351,6 +550,16 @@ mtk_pci_maxslots(device_t dev)
 	return (PCI_SLOTMAX);
 }
 
+static inline int
+mtk_pci_slot_has_link(device_t dev, int slot)
+{
+	struct mtk_pci_softc *sc = device_get_softc(dev);
+
+	if (sc->has_pci && slot >= 0x10) return 1;
+                
+	return !!(sc->pcie_link_status & (1<<slot));
+}
+
 uint32_t
 mtk_pci_read_config(device_t dev, u_int bus, u_int slot, u_int func,
 	u_int reg, int bytes)
@@ -358,27 +567,36 @@ mtk_pci_read_config(device_t dev, u_int bus, u_int slot, u_int func,
 	struct mtk_pci_softc *sc = device_get_softc(dev);
 	uint32_t addr = 0, data = 0;
 
-	if (bus == 0 && (sc->pcie_link_status & (1<<slot)) == 0)
+	//printf("%s: bus %d link %d... ", __FUNCTION__, bus,
+	//    sc->pcie_link_status & (1<<slot));
+
+	if (bus == 0 && mtk_pci_slot_has_link(dev, slot) == 0) {
+		//printf("fail, return 0x%08x\n", ~0U);
 		return (~0U);
+	}
+
+	//printf("pass, ");
 
 	mtx_lock_spin(&mtk_pci_mtx);
 	addr = mtk_pci_make_addr(bus, slot, func, (reg & ~3));
-	RT_WRITE32(sc, MTK_PCI_CFGADDR, addr);
+	MT_WRITE32(sc, MTK_PCI_CFGADDR, addr);
 	switch (bytes % 4) {
 	case 0:
-		data = RT_READ32(sc, MTK_PCI_CFGDATA);
+		data = MT_READ32(sc, MTK_PCI_CFGDATA);
 		break;
 	case 1:
-		data = RT_READ8(sc, MTK_PCI_CFGDATA + (reg & 0x3));
+		data = MT_READ8(sc, MTK_PCI_CFGDATA + (reg & 0x3));
 		break;
 	case 2:
-		data = RT_READ16(sc, MTK_PCI_CFGDATA + (reg & 0x3));
+		data = MT_READ16(sc, MTK_PCI_CFGDATA + (reg & 0x3));
 		break;
 	default:
 		panic("%s(): Wrong number of bytes (%d) requested!\n",
 			__FUNCTION__, bytes % 4);
 	}
 	mtx_unlock_spin(&mtk_pci_mtx);
+
+	//printf("return 0x%08x\n", data);
 
 	return (data);
 }
@@ -390,50 +608,64 @@ mtk_pci_write_config(device_t dev, u_int bus, u_int slot, u_int func,
 	struct mtk_pci_softc *sc = device_get_softc(dev);
 	uint32_t addr = 0, data = val;
 
-	if (bus == 0 && (sc->pcie_link_status & (1<<slot)) == 0)
+	//printf("%s: bus %d link %d... ", __FUNCTION__, bus,
+	    //sc->pcie_link_status & (1<<slot));
+
+	if (bus == 0 && mtk_pci_slot_has_link(dev, slot) == 0) {
+		//printf("fail, no write\n");
 		return;
+	}
 
 	mtx_lock_spin(&mtk_pci_mtx);
 	addr = mtk_pci_make_addr(bus, slot, func, (reg & ~3));
-	RT_WRITE32(sc, MTK_PCI_CFGADDR, addr);
+	MT_WRITE32(sc, MTK_PCI_CFGADDR, addr);
 	switch (bytes % 4) {
 	case 0:
-		RT_WRITE32(sc, MTK_PCI_CFGDATA, data);
+		MT_WRITE32(sc, MTK_PCI_CFGDATA, data);
 		break;
 	case 1:
-		RT_WRITE8(sc, MTK_PCI_CFGDATA + (reg & 0x3), data);
+		MT_WRITE8(sc, MTK_PCI_CFGDATA + (reg & 0x3), data);
 		break;
 	case 2:
-		RT_WRITE16(sc, MTK_PCI_CFGDATA + (reg & 0x3), data);
+		MT_WRITE16(sc, MTK_PCI_CFGDATA + (reg & 0x3), data);
 		break;
 	default:
 		panic("%s(): Wrong number of bytes (%d) requested!\n",
 			__FUNCTION__, bytes % 4);
 	}
 	mtx_unlock_spin(&mtk_pci_mtx);
+	//printf("pass, written\n");
 }
 
+#if 0
 static int
 mtk_pci_route_interrupt(device_t pcib, device_t device, int pin)
 {
 	//struct mtk_pci_softc *sc = device_get_softc(pcib);
-	int bus, sl;
+	int bus, sl, dev;
+
+	if (1) return PCI_INVALID_IRQ;
 
 	bus = pci_get_bus(device);
 	sl = pci_get_slot(device);
+	dev = pci_get_device(device);
+
+	printf("%s: for %d:%d:%d, int = %d\n", __FUNCTION__, bus, sl, dev, pin);
 
 	if (bus != 0)
 		panic("Unexpected bus number %d\n", bus);
 
-	//printf("%s: not done yet.\n", __FUNCTION__);
-
+	/* PCIe only */
 	switch (sl) {
 	case 0: return MTK_PCIE0_IRQ;
+	case 1: return MTK_PCIE0_IRQ + 1;
+	case 2: return MTK_PCIE0_IRQ + 2;
 	default: return (-1);
 	}
 
 	return (-1);
 }
+#endif
 
 static device_method_t mtk_pci_methods[] = {
 	/* Device interface */
@@ -448,7 +680,11 @@ static device_method_t mtk_pci_methods[] = {
 	DEVMETHOD(bus_write_ivar,	mtk_pci_write_ivar),
 	DEVMETHOD(bus_alloc_resource,	mtk_pci_alloc_resource),
 	DEVMETHOD(bus_release_resource,	bus_generic_release_resource),
+#if 0
 	DEVMETHOD(bus_activate_resource,   mtk_pci_activate_resource),
+#else
+	DEVMETHOD(bus_activate_resource,   bus_generic_activate_resource),
+#endif
 	DEVMETHOD(bus_deactivate_resource, bus_generic_deactivate_resource),
 	DEVMETHOD(bus_setup_intr,	mtk_pci_setup_intr),
 	DEVMETHOD(bus_teardown_intr,	mtk_pci_teardown_intr),
@@ -457,7 +693,9 @@ static device_method_t mtk_pci_methods[] = {
 	DEVMETHOD(pcib_maxslots,	mtk_pci_maxslots),
 	DEVMETHOD(pcib_read_config,	mtk_pci_read_config),
 	DEVMETHOD(pcib_write_config,	mtk_pci_write_config),
+#if 0
 	DEVMETHOD(pcib_route_interrupt,	mtk_pci_route_interrupt),
+#endif
 
 	DEVMETHOD_END
 };
@@ -598,14 +836,6 @@ mtk_pcib_init_all_bars(device_t dev, int bus, int slot, int func,
 	return (0);
 }
 
-static inline int
-mtk_pci_slot_has_link(device_t dev, int slot)
-{
-	struct mtk_pci_softc *sc = device_get_softc(dev);
-
-	return !!(sc->pcie_link_status & (1<<slot));
-}
-
 static int cur_secbus = 0;
 
 static void
@@ -649,6 +879,8 @@ mtk_pcib_init_bridge(device_t dev, int bus, int slot, int func)
 	mtk_pci_write_config(dev, bus, slot, func, PCIR_PMLIMITH_1,
 		0x0, 4);
 
+	mtk_pci_write_config(dev, bus, slot, func, PCIR_INTLINE, 0xff, 1);
+
 	secbus = mtk_pci_read_config(dev, bus, slot, func, PCIR_SECBUS_1, 1);
 
 	if (secbus == 0) {
@@ -660,6 +892,29 @@ mtk_pcib_init_bridge(device_t dev, int bus, int slot, int func)
 	}
 
 	mtk_pcib_init(dev, secbus, PCI_SLOTMAX);
+}
+
+static uint8_t
+mtk_pci_get_int(device_t dev, int bus, int slot)
+{
+
+	if (slot != 0)
+		return (PCI_INVALID_IRQ);
+
+	switch (bus) {
+	case 1:
+		return (MTK_PCIE0_IRQ);
+	case 2:
+		return (MTK_PCIE1_IRQ);
+	case 3:
+		return (MTK_PCIE2_IRQ);
+	default:
+		device_printf(dev, "Bus %d out of range\n", slot);
+		return (PCI_INVALID_IRQ);
+	}
+
+	/* Unreachable */
+	return (PCI_INVALID_IRQ);
 }
 
 static int
@@ -705,8 +960,16 @@ mtk_pcib_init(device_t dev, int bus, int maxslot)
 			subclass = mtk_pci_read_config(dev, bus, slot, func,
 				PCIR_SUBCLASS, 1);
 
-			if (class != PCIC_BRIDGE || subclass != PCIS_BRIDGE_PCI)
+			if (class != PCIC_BRIDGE ||
+			    subclass != PCIS_BRIDGE_PCI) {
+				uint8_t val;
+
+				val = mtk_pci_get_int(dev, bus, slot);
+
+				mtk_pci_write_config(dev, bus, slot, func,
+				    PCIR_INTLINE, val, 1); /* XXX */
 				continue;
+			}
 
 			mtk_pcib_init_bridge(dev, bus, slot, func);
 		}
@@ -722,11 +985,11 @@ mtk_pci_intr(void *arg)
 	struct intr_event *event;
 	uint32_t reg, irq, irqidx;
 
-	reg = RT_READ32(sc, MTK_PCI_PCIINT);
+	reg = MT_READ32(sc, MTK_PCI_PCIINT);
 
-	for (irqidx = 0; irqidx < MTK_PCI_NIRQS; irqidx++) {
-		irq = mtk_idx_to_irq(irqidx);
-		if (reg & (1<<irq)) {
+	for (irq = sc->sc_irq_start; irq <= sc->sc_irq_end; irq++) {
+		if (reg & (1u<<irq)) {
+			irqidx = irq - sc->sc_irq_start;
 			event = sc->sc_eventstab[irqidx];
 			if (!event || TAILQ_EMPTY(&event->ie_handlers)) {
 				if (irq != 0)

@@ -160,7 +160,7 @@
 	        };
 
 		ohci {
-                        compatible = "mtk,mtk-ohci";
+                        compatible = "usb-ohci";
                         reg = <0x101C1000 0x1000>;
                         interrupts = <18>;
                         interrupt-parent = <&intc>;
@@ -170,7 +170,7 @@
                 };
 
 		ehci {
-			compatible = "mtk,mtk-ehci";
+			compatible = "usb-ehci";
 			reg = <0x101C0000 0x1000>;
 			interrupts = <18>;
 			interrupt-parent = <&intc>;

@@ -39,18 +39,18 @@
 #include <dev/ofw/ofw_bus_subr.h>
 
 #include "fdt_reset_if.h"
-#include <mips/mtk/fdt_reset.h>
+#include <dev/fdt/fdt_reset.h>
 
 /*
- * Loop through all the tuples in the resets= property for a device, enabling or
- * disabling each reset.
+ * Loop through all the tuples in the resets= property for a device, asserting
+ * or deasserting each reset.
  *
- * Be liberal about errors for now: warn about a failure to enable but keep
+ * Be liberal about errors for now: warn about a failure to (de)assert but keep
  * trying with any other resets in the list.  Return ENXIO if any errors were
  * found, and let the caller decide whether the problem is fatal.
  */
 static int
-apply_remove_all(device_t consumer, boolean_t apply)
+assert_deassert_all(device_t consumer, boolean_t assert)
 {
 	phandle_t rnode;
 	device_t resetdev;
@@ -61,7 +61,7 @@ apply_remove_all(device_t consumer, boolean_t apply)
 	rnode = ofw_bus_get_node(consumer);
 	ncells = OF_getencprop_alloc(rnode, "resets", sizeof(*resets),
 	    (void **)&resets);
-	if (apply && ncells < 2) {
+	if (!assert && ncells < 2) {
 		device_printf(consumer, "Warning: No resets specified in fdt "
 		    "data; device may not function.");
 		return (ENXIO);
@@ -71,21 +71,21 @@ apply_remove_all(device_t consumer, boolean_t apply)
 		resetdev = OF_device_from_xref(resets[i]);
 		resetnum = resets[i + 1];
 		if (resetdev == NULL) {
-			if (apply)
+			if (!assert)
 				device_printf(consumer, "Warning: can not find "
-				    "driver for reset number %u; device may not "
-				    "function\n", resetnum);
+				    "driver for reset number %u; device may "
+				    "not function\n", resetnum);
 			anyerrors = true;
 			continue;
 		}
-		if (apply)
-			err = FDT_RESET_APPLY(resetdev, resetnum);
+		if (assert)
+			err = FDT_RESET_ASSERT(resetdev, resetnum);
 		else
-			err = FDT_RESET_REMOVE(resetdev, resetnum);
+			err = FDT_RESET_DEASSERT(resetdev, resetnum);
 		if (err != 0) {
-			if (apply)
+			if (!assert)
 				device_printf(consumer, "Warning: failed to "
-				    "apply reset number %u; device may not "
+				    "deassert reset number %u; device may not "
 				    "function\n", resetnum);
 			anyerrors = true;
 		}
@@ -95,17 +95,17 @@ apply_remove_all(device_t consumer, boolean_t apply)
 }
 
 int
-fdt_reset_apply_all(device_t consumer)
+fdt_reset_assert_all(device_t consumer)
 {
 
-	return (apply_remove_all(consumer, true));
+	return (assert_deassert_all(consumer, true));
 }
 
 int
-fdt_reset_remove_all(device_t consumer)
+fdt_reset_deassert_all(device_t consumer)
 {
 
-	return (apply_remove_all(consumer, false));
+	return (assert_deassert_all(consumer, false));
 }
 
 void

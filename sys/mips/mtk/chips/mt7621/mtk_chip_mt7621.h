@@ -36,4 +36,18 @@
 #define SYSCTL_RSTCTRL_UPHY0		(1<<25)
 #define SYSCTL_RSTCTRL_UPHY1		(1<<22)
 
+#define GPIO_PCIE_PORT0			19
+#define GPIO_PCIE_PORT1			8
+#define GPIO_PCIE_PORT2			7
+
+#define UARTL3_SHARE_PIN_SW		3
+#define PCIE_SHARE_PIN_SW		10
+
+#define PCIE0_CLK_EN             	(1 << 24)
+#define PCIE1_CLK_EN             	(1 << 25)
+#define PCIE2_CLK_EN             	(1 << 26)
+#define PCIE0_RST                	(1 << 24)
+#define PCIE1_RST                	(1 << 25)
+#define PCIE2_RST                	(1 << 26)
+
 #endif /* _MTK_CHIP_MT7621_H_ */

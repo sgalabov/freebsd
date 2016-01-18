@@ -127,7 +127,18 @@
                         status = "okay";
                     };
 
-	        };
+		};
+
+		pci {
+                    compatible = "mtk,mtk-pci";
+                    reg = <0x1e140000 0x20000>;
+		    ranges = <1 0x1e160000 0x00010000
+			      2 0x60000000 0x10000000>;
+                    interrupts = <4 24 25>;
+                    interrupt-parent = <&intc>;
+                    status = "okay";
+                };
+
 
 		rt {
                 	compatible = "mtk,mt7621-eth";

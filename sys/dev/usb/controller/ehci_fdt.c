@@ -56,8 +56,8 @@ __FBSDID("$FreeBSD$");
 
 #include <dev/usb/usb_controller.h>
 #include <dev/usb/usb_bus.h>
-#include <dev/usb/controller/ohci.h>
-#include <dev/usb/controller/ohcireg.h>
+#include <dev/usb/controller/ehci.h>
+#include <dev/usb/controller/ehcireg.h>
 
 #include <sys/rman.h>
 
@@ -73,34 +73,34 @@ __FBSDID("$FreeBSD$");
 #define RESET_ASSERT_DELAY	1000	/* XXX: better value? */
 #define RESET_DEASSERT_DELAY	10000	/* XXX: better value? */
 
-#ifndef OHCI_HC_VENDORSTR
-#define OHCI_HC_VENDORSTR	"Generic"
+#ifndef EHCI_HC_VENDORSTR
+#define EHCI_HC_VENDORSTR	"Generic"
 #endif
 
-#ifndef OHCI_HC_DEVSTR
-#define OHCI_HC_DEVSTR		"USB OHCI controller"
+#ifndef EHCI_HC_DEVSTR
+#define EHCI_HC_DEVSTR		"USB EHCI controller"
 #endif
 
-static device_probe_t  ohci_fdt_probe;
-static device_attach_t ohci_fdt_attach;
-static device_detach_t ohci_fdt_detach;
+static device_probe_t  ehci_fdt_probe;
+static device_attach_t ehci_fdt_attach;
+static device_detach_t ehci_fdt_detach;
 
 static int
-ohci_fdt_probe(device_t dev)
+ehci_fdt_probe(device_t dev)
 {
 	if (!ofw_bus_status_okay(dev))
 		return (ENXIO);
-	if (!ofw_bus_is_compatible(dev, "usb-ohci"))
+	if (!ofw_bus_is_compatible(dev, "usb-ehci"))
 		return (ENXIO);
-	device_set_desc(dev, OHCI_HC_VENDORSTR " " OHCI_HC_DEVSTR);
+	device_set_desc(dev, EHCI_HC_VENDORSTR " " EHCI_HC_DEVSTR);
 
 	return (BUS_PROBE_DEFAULT);
 }
 
 static int
-ohci_fdt_attach(device_t dev)
+ehci_fdt_attach(device_t dev)
 {
-	ohci_softc_t *sc = device_get_softc(dev);
+	ehci_softc_t *sc = device_get_softc(dev);
 	phandle_t node;
 	int err;
 	int rid;
@@ -111,16 +111,14 @@ ohci_fdt_attach(device_t dev)
 	/* initialise some bus fields */
 	sc->sc_bus.parent = dev;
 	sc->sc_bus.devices = sc->sc_devices;
-	sc->sc_bus.devices_max = OHCI_MAX_DEVICES;
+	sc->sc_bus.devices_max = EHCI_MAX_DEVICES;
 	sc->sc_bus.dma_bits = 32;
 
 	/* get all DMA memory */
 	if (usb_bus_mem_alloc_all(&sc->sc_bus,
-	    USB_GET_DMA_TAG(dev), &ohci_iterate_hw_softc)) {
+	    USB_GET_DMA_TAG(dev), &ehci_iterate_hw_softc)) {
 		return (ENOMEM);
 	}
-
-	sc->sc_dev = dev;
 
 	rid = MEM_RID;
 	sc->sc_io_res = bus_alloc_resource_any(dev, SYS_RES_MEMORY,
@@ -145,10 +143,10 @@ ohci_fdt_attach(device_t dev)
 	}
 	device_set_ivars(sc->sc_bus.bdev, &sc->sc_bus);
 
-	strlcpy(sc->sc_vendor, OHCI_HC_VENDORSTR, sizeof(sc->sc_vendor));
+	strlcpy(sc->sc_vendor, EHCI_HC_VENDORSTR, sizeof(sc->sc_vendor));
 
 	err = bus_setup_intr(dev, sc->sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-	    NULL, (driver_intr_t *)ohci_interrupt, sc, &sc->sc_intr_hdl);
+	    NULL, (driver_intr_t *)ehci_interrupt, sc, &sc->sc_intr_hdl);
 	if (err) {
 		sc->sc_intr_hdl = NULL;
 		goto error;
@@ -172,9 +170,9 @@ ohci_fdt_attach(device_t dev)
 		DELAY(RESET_DEASSERT_DELAY);
 	}
 
-	bus_space_write_4(sc->sc_io_tag, sc->sc_io_hdl, OHCI_CONTROL, 0);
+	bus_space_write_4(sc->sc_io_tag, sc->sc_io_hdl, EHCI_USBCMD, 0);
 
-	err = ohci_init(sc);
+	err = ehci_init(sc);
 	if (!err) {
 		err = device_probe_and_attach(sc->sc_bus.bdev);
 	}
@@ -184,14 +182,14 @@ ohci_fdt_attach(device_t dev)
 	return (0);
 
 error:
-	ohci_fdt_detach(dev);
+	ehci_fdt_detach(dev);
 	return (ENXIO);
 }
 
 static int
-ohci_fdt_detach(device_t dev)
+ehci_fdt_detach(device_t dev)
 {
-	ohci_softc_t *sc = device_get_softc(dev);
+	ehci_softc_t *sc = device_get_softc(dev);
 	device_t bdev;
 	phandle_t node;
 	int err;
@@ -214,7 +212,7 @@ ohci_fdt_detach(device_t dev)
 		 * after we do the rest of the teardown.
 		 */
 		bus_space_write_4(sc->sc_io_tag, sc->sc_io_hdl,
-		    OHCI_CONTROL, 0);
+		    EHCI_USBCMD, 0);
 
 		/*
 		 * If the controller has 'resets=' property - assert all
@@ -231,9 +229,9 @@ ohci_fdt_detach(device_t dev)
 
 		if (sc->sc_irq_res && sc->sc_intr_hdl) {
 			/*
-			 * only call ohci_detach() after ohci_init()
+			 * only call ehci_detach() after ehci_init()
 			 */
-			ohci_detach(sc);
+			ehci_detach(sc);
 
 			err = bus_teardown_intr(dev, sc->sc_irq_res,
 			    sc->sc_intr_hdl);
@@ -250,16 +248,16 @@ ohci_fdt_detach(device_t dev)
 			sc->sc_io_res = NULL;
 		}
 	}
-	usb_bus_mem_free_all(&sc->sc_bus, &ohci_iterate_hw_softc);
+	usb_bus_mem_free_all(&sc->sc_bus, &ehci_iterate_hw_softc);
 
 	return (0);
 }
 
-static device_method_t ohci_fdt_methods[] = {
+static device_method_t ehci_fdt_methods[] = {
 	/* Device interface */
-	DEVMETHOD(device_probe, ohci_fdt_probe),
-	DEVMETHOD(device_attach, ohci_fdt_attach),
-	DEVMETHOD(device_detach, ohci_fdt_detach),
+	DEVMETHOD(device_probe, ehci_fdt_probe),
+	DEVMETHOD(device_attach, ehci_fdt_attach),
+	DEVMETHOD(device_detach, ehci_fdt_detach),
 	DEVMETHOD(device_suspend, bus_generic_suspend),
 	DEVMETHOD(device_resume, bus_generic_resume),
 	DEVMETHOD(device_shutdown, bus_generic_shutdown),
@@ -267,13 +265,13 @@ static device_method_t ohci_fdt_methods[] = {
 	DEVMETHOD_END
 };
 
-static driver_t ohci_fdt_driver = {
-	.name = "ohci",
-	.methods = ohci_fdt_methods,
-	.size = sizeof(ohci_softc_t),
+static driver_t ehci_fdt_driver = {
+	.name = "ehci",
+	.methods = ehci_fdt_methods,
+	.size = sizeof(ehci_softc_t),
 };
 
-static devclass_t ohci_fdt_devclass;
+static devclass_t ehci_fdt_devclass;
 
-DRIVER_MODULE(ohci, simplebus, ohci_fdt_driver, ohci_fdt_devclass, 0, 0);
-MODULE_DEPEND(ohci, usb, 1, 1, 1);
+DRIVER_MODULE(ehci, simplebus, ehci_fdt_driver, ehci_fdt_devclass, 0, 0);
+MODULE_DEPEND(ehci, usb, 1, 1, 1);

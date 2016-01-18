@@ -109,7 +109,7 @@ device		mx25l
 
 device		usb
 device		ehci
-device		ohci
+#device		ohci
 device		umass
 device		da
 device		pass
@@ -117,6 +117,7 @@ device		scbus
 #options 	SCSI_DELAY=1000		# Delay (in ms) before probing SCSI
 
 device		pci
+device		xhci
 
 device		fdt_clock
 device		fdt_pinctrl

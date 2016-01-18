@@ -32,20 +32,26 @@
 #define PCI_MIN_MEM_ALLOC		16
 #define BITS_PER_UINT32			(NBBY * sizeof(uint32_t))
 
-#define MTK_PCI_NIRQS			1
+#define MTK_PCI_NIRQS			3
 #define MTK_PCI_BASESLOT		0
 
 struct mtk_pci_softc {
 	device_t		sc_dev;
 
-	bus_space_tag_t		sc_bst;
-	bus_space_handle_t	sc_bsh;
+	uint8_t			has_pci;
+
+	struct resource *	pci_res[4];
+	void *			pci_intrhand[MTK_PCI_NIRQS];
 
 	int			sc_busno;
 
 	struct rman		sc_mem_rman;
 	struct rman		sc_io_rman;
 	struct rman		sc_irq_rman;
+
+	uint32_t		sc_num_irq;
+	uint32_t		sc_irq_start;
+	uint32_t		sc_irq_end;
 
 	bus_addr_t		sc_mem_base;
 	bus_addr_t		sc_mem_size;
@@ -58,7 +64,7 @@ struct mtk_pci_softc {
 				(PCI_MIN_IO_ALLOC * BITS_PER_UINT32)];
 
 	struct intr_event	*sc_eventstab[MTK_PCI_NIRQS];
-	mips_intrcnt_t		sc_intr_counter[MTK_PCI_NIRQS];
+	//mips_intrcnt_t		sc_intr_counter[MTK_PCI_NIRQS];
 
 	int			pcie_link_status;
 };
@@ -70,6 +76,7 @@ struct mtk_pci_softc {
 #define MTK_PCI_CFGDATA			0x0024
 #define MTK_PCI_MEMBASE			0x0028
 #define MTK_PCI_IOBASE			0x002C
+#define MTK_PCI_ARBCTL			0x0080
 #define MTK_PCI_PHY0_CFG		0x0090
 
 #define MTK_PCI_PCIE0_BAR0SETUP		0x2010
@@ -88,18 +95,18 @@ struct mtk_pci_softc {
 
 #define MTK_PCI_INTR_PIN		2
 
-#define RT_WRITE32(sc, off, val) \
-	bus_space_write_4((sc)->sc_bst, (sc)->sc_bsh, (off), (val))
-#define RT_WRITE16(sc, off, val) \
-	bus_space_write_2((sc)->sc_bst, (sc)->sc_bsh, (off), (val))
-#define RT_WRITE8(sc, off, val) \
-	bus_space_write_1((sc)->sc_bst, (sc)->sc_bsh, (off), (val))
-#define RT_READ32(sc, off) \
-	bus_space_read_4((sc)->sc_bst, (sc)->sc_bsh, (off))
-#define RT_READ16(sc, off) \
-	bus_space_read_2((sc)->sc_bst, (sc)->sc_bsh, (off))
-#define RT_READ8(sc, off) \
-	bus_space_read_1((sc)->sc_bst, (sc)->sc_bsh, (off))
+#define MT_WRITE32(sc, off, val) \
+	bus_write_4((sc)->pci_res[0], (off), (val))
+#define MT_WRITE16(sc, off, val) \
+	bus_write_2((sc)->pci_res[0], (off), (val))
+#define MT_WRITE8(sc, off, val) \
+	bus_write_1((sc)->pci_res[0], (off), (val))
+#define MT_READ32(sc, off) \
+	bus_read_4((sc)->pci_res[0], (off))
+#define MT_READ16(sc, off) \
+	bus_read_2((sc)->pci_res[0], (off))
+#define MT_READ8(sc, off) \
+	bus_read_1((sc)->pci_res[0], (off))
 
 uint32_t mtk_pci_read_config(device_t, u_int, u_int, u_int, u_int, int);
 void mtk_pci_write_config(device_t, u_int, u_int, u_int, u_int, uint32_t, int);

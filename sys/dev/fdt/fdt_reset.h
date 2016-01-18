@@ -32,11 +32,11 @@
 #include "fdt_reset_if.h"
 
 /*
- * Look up "resets" property in consumer's fdt data and enable or disable all
+ * Look up "resets" property in consumer's fdt data and assert or deassert all
  * configured resets.
  */
-int fdt_reset_apply_all(device_t consumer);
-int fdt_reset_remove_all(device_t consumer);
+int fdt_reset_assert_all(device_t consumer);
+int fdt_reset_deassert_all(device_t consumer);
 
 /*
  * [Un]register the given device instance as a driver that implements the

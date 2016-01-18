@@ -49,7 +49,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/fdt/fdt_common.h>
 #include <dev/fdt/fdt_pinctrl.h>
 #include <dev/fdt/fdt_clock.h>
-#include <mips/mtk/fdt_reset.h>
+#include <dev/fdt/fdt_reset.h>
 
 #include "fdt_pinctrl_if.h"
 #include "fdt_clock_if.h"
@@ -227,6 +227,13 @@ mtk_sysctl_attach(device_t dev)
 		device_printf(dev, "GPIOMODE: 0x%08x\n",
 		    bus_read_4(sc->mem_res, 0x60));
 
+	{
+		uint32_t val;
+
+		val = *((volatile uint32_t *)0xb0181000);
+		device_printf(dev, "asic: 0x%08x\n", val);
+	}
+
 	return (0);
 }
 
@@ -345,7 +352,7 @@ mtk_clock_get_info(device_t dev, int index, struct fdt_clock_info *info)
 }
 
 static int
-mtk_reset_apply(device_t dev, int index)
+mtk_reset_assert(device_t dev, int index)
 {
 	struct mtk_sysctl_softc *sc = device_get_softc(dev);
 	uint32_t mask = (1u << index);
@@ -360,7 +367,7 @@ mtk_reset_apply(device_t dev, int index)
 }
 
 static int
-mtk_reset_remove(device_t dev, int index)
+mtk_reset_deassert(device_t dev, int index)
 {
 	struct mtk_sysctl_softc *sc = device_get_softc(dev);
 	uint32_t mask = ~(1u << index);
@@ -388,8 +395,8 @@ static device_method_t mtk_sysctl_methods[] = {
 	DEVMETHOD(fdt_clock_get_info,		mtk_clock_get_info),
 
 	/* fdt_reset interface */
-	DEVMETHOD(fdt_reset_apply,		mtk_reset_apply),
-	DEVMETHOD(fdt_reset_remove,		mtk_reset_remove),
+	DEVMETHOD(fdt_reset_assert,		mtk_reset_assert),
+	DEVMETHOD(fdt_reset_deassert,		mtk_reset_deassert),
 
 	{0, 0},
 };

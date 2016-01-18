@@ -136,7 +136,7 @@ void
 platform_reset(void)
 {
 
-#if 0
+#if 1
 	mtk_chip_reset();
 #else
 	*((volatile uint32_t *)0xbe000034) = 1;
