@@ -222,7 +222,7 @@ mtk_pci_attach(device_t dev)
 		if (sc->pci_res[i] != NULL)
 			sc->sc_num_irq++;
 	sc->sc_irq_start = MTK_PCIE0_IRQ;
-	sc->sc_irq_end = sc->sc_irq_start + sc->sc_num_irq - 1;
+	sc->sc_irq_end = MTK_PCIE2_IRQ; //sc->sc_irq_start + sc->sc_num_irq - 1;
 
 	sc->sc_dev = dev;
 	mt_sc = sc;
@@ -364,8 +364,6 @@ mtk_pci_alloc_resource(device_t bus, device_t child, int type, int *rid,
 	vm_offset_t va;
 #endif
 
-	printf("%s: entered\n", __FUNCTION__);
-
 	switch (type) {
 	case SYS_RES_IRQ:
 		rm = &sc->sc_irq_rman;
@@ -377,16 +375,13 @@ mtk_pci_alloc_resource(device_t bus, device_t child, int type, int *rid,
 		rm = &sc->sc_mem_rman;
 		break;
 	default:
-		printf("%s: %d\n", __FUNCTION__, 1);
 		return (NULL);
 	}
 
 	rv = rman_reserve_resource(rm, start, end, count, flags, child);
 
-	if (rv == NULL) {
-		printf("%s: %d (%s)\n", __FUNCTION__, 2, type == SYS_RES_IRQ ? "IRQ" : type == SYS_RES_MEMORY ? "MEM" : "IO" );
+	if (rv == NULL)
 		return (NULL);
-	}
 
 	rman_set_rid(rv, *rid);
 
@@ -409,8 +404,6 @@ mtk_pci_alloc_resource(device_t bus, device_t child, int type, int *rid,
 			return (NULL);
 		}
 	}
-
-	printf("%s: %d (%s)\n", __FUNCTION__, 3, rv == NULL ? "NULL" : "NONNULL");
 
 	return (rv);
 }
@@ -467,14 +460,10 @@ mtk_pci_setup_intr(device_t bus, device_t child, struct resource *ires,
 	struct intr_event *event;
 	int irq, error, irqidx;
 
-	printf("%s: %d\n", __FUNCTION__, 1);
-
 	irq = rman_get_start(ires);
 
-	if (irq < sc->sc_irq_start || irq > sc->sc_irq_end) {
-		printf("%s: %d\n", __FUNCTION__, 2);
+	if (irq < sc->sc_irq_start || irq > sc->sc_irq_end)
 		return (EINVAL);
-	}
 
 	irqidx = irq - sc->sc_irq_start;
 
@@ -490,7 +479,6 @@ mtk_pci_setup_intr(device_t bus, device_t child, struct resource *ires,
 	//		    mips_intrcnt_create(event->ie_name);
 		}
 		else {
-			printf("%s: %d\n", __FUNCTION__, 3);
 			return (error);
 		}
 	}
@@ -501,8 +489,6 @@ mtk_pci_setup_intr(device_t bus, device_t child, struct resource *ires,
 	//mips_intrcnt_setname(sc->sc_intr_counter[irqidx], event->ie_fullname);
 
 	mtk_pci_unmask_irq((void*)irq);
-
-	printf("%s: %d\n", __FUNCTION__, 4);
 
 	return (0);
 }
