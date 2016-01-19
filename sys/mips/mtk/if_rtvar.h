@@ -121,6 +121,7 @@ struct rt_rxdesc
 	uint16_t sdl1;
 	uint16_t sdl0;
 	uint32_t sdp1;
+#if 0
 	uint16_t foe;
 #define	RXDSXR_FOE_ENTRY_VALID		0x40
 #define	RXDSXR_FOE_ENTRY_MASK		0x3f
@@ -134,6 +135,8 @@ struct rt_rxdesc
 #define	RXDSXR_SRC_L4_CSUM_FAIL	0x10
 #define	RXDSXR_SRC_AIS			0x08
 #define	RXDSXR_SRC_PORT_MASK		0x07
+#endif
+	uint32_t word3;
 } __packed;
 
 struct rt_softc_rx_data
@@ -263,6 +266,8 @@ struct rt_softc
         uint32_t        rt_chipid;
         /* chip specific registers config */
         int		rx_ring_count;
+	uint32_t	csum_fail_l4;
+	uint32_t	csum_fail_ip;
         uint32_t	int_rx_done_mask;
         uint32_t	int_tx_done_mask;
         uint32_t        delay_int_cfg;

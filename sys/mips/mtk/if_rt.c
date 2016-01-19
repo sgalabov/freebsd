@@ -201,8 +201,8 @@ rt_probe(device_t dev)
 	sc->rt_chipid = RT_CHIPID_RT3050;
 #endif
 #endif
-	snprintf(buf, sizeof(buf), "Ralink RT%x onChip Ethernet driver",
-		sc->rt_chipid);
+	snprintf(buf, sizeof(buf), "Ralink %cT%x onChip Ethernet driver",
+		sc->rt_chipid >= 0x7600 ? 'M' : 'R', sc->rt_chipid);
 	device_set_desc_copy(dev, buf);
 	return (BUS_PROBE_GENERIC);
 }
@@ -379,13 +379,26 @@ rt_attach(device_t dev)
 
 	/* Reset hardware */
 	reset_freng(sc);
+
+
+	if (sc->rt_chipid == RT_CHIPID_MT7620) {
+		sc->csum_fail_ip = (1<<25);
+		sc->csum_fail_l4 = (1<<22);
+	} else if (sc->rt_chipid == RT_CHIPID_MT7621) {
+		sc->csum_fail_ip = (1<<26);
+		sc->csum_fail_l4 = (1<<23);
+	} else {
+		sc->csum_fail_ip = (1<<29);//RXDSXR_SRC_IP_CSUM_FAIL;
+		sc->csum_fail_l4 = (1<<28);//RXDSXR_SRC_L4_CSUM_FAIL;
+	}
 	
 	/* Fill in soc-specific registers map */
 	switch(sc->rt_chipid) {
-	  case RT_CHIPID_RT5350:
 	  case RT_CHIPID_MT7620:
 	  case RT_CHIPID_MT7621:
-	  	device_printf(dev, "RT%x Ethernet MAC (rev 0x%08x)\n",
+	  case RT_CHIPID_RT5350:
+	  	device_printf(dev, "%cT%x Ethernet MAC (rev 0x%08x)\n",
+			sc->rt_chipid >= 0x7600 ? 'M' : 'R',
 	  		sc->rt_chipid, sc->mac_rev);
 		/* RT5350: No GDMA, PSE, CDMA, PPE */
 		RT_WRITE(sc, GE_PORT_BASE + 0x0C00, // UDPCS, TCPCS, IPCS=1
@@ -1889,15 +1902,13 @@ rt_rx_eof(struct rt_softc *sc, struct rt_softc_rx_ring *ring, int limit)
 			BUS_DMASYNC_PREREAD);
 
 		m = data->m;
-		desc_flags = desc->src;
+		desc_flags = desc->word3;
 
 		data->m = mnew;
 		/* Add 2 for proper align of RX IP header */
 		desc->sdp0 = htole32(segs[0].ds_addr+2);
 		desc->sdl0 = htole32(segs[0].ds_len-2);
-		desc->src = 0;
-		desc->ai = 0;
-		desc->foe = 0;
+		desc->word3 = 0;
 
 		RT_DPRINTF(sc, RT_DEBUG_RX,
 		    "Rx frame: rxdesc flags=0x%08x\n", desc_flags);
@@ -1910,8 +1921,7 @@ rt_rx_eof(struct rt_softc *sc, struct rt_softc_rx_ring *ring, int limit)
 		/* check for crc errors */
 		if ((ifp->if_capenable & IFCAP_RXCSUM) != 0) {
 			/*check for valid checksum*/
-			if (desc_flags & (RXDSXR_SRC_IP_CSUM_FAIL|
-			    RXDSXR_SRC_L4_CSUM_FAIL)) {
+			if (desc_flags & (sc->csum_fail_ip|sc->csum_fail_l4)) {
 				RT_DPRINTF(sc, RT_DEBUG_RX,
 				    "rxdesc: crc error\n");
 
@@ -1922,7 +1932,7 @@ rt_rx_eof(struct rt_softc *sc, struct rt_softc_rx_ring *ring, int limit)
 				    goto skip;
 				}
 			}
-			if ((desc_flags & RXDSXR_SRC_IP_CSUM_FAIL) != 0) {
+			if ((desc_flags & sc->csum_fail_ip) == 0) {
 				m->m_pkthdr.csum_flags |= CSUM_IP_CHECKED;
 				m->m_pkthdr.csum_flags |= CSUM_IP_VALID;
 				m->m_pkthdr.csum_data = 0xffff;
