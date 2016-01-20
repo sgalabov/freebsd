@@ -147,14 +147,20 @@
 		    };
 	        };
 
+		usb_phy {
+			compatible = "mtk,usbphy";
+			reg;
+			clocks = <&sysc 18>, <&sysc 20>;
+			resets = <&sysc 22>, <&sysc 25>;
+			status = "okay";
+		};
+
 		ehci {
                         compatible = "usb-ehci";
                         reg = <0x101C0000 0x1000>;
                         interrupts = <18>;
                         interrupt-parent = <&intc>;
                         status = "okay";
-                        clocks = <&sysc 20>, <&sysc 18>;
-                        resets = <&sysc 25>, <&sysc 22>;
                 };
 
 		pci {

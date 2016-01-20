@@ -273,6 +273,17 @@ mtk_sysctl_set(uint32_t reg, uint32_t val)
 	return;
 }
 
+void
+mtk_sysctl_clr_set(uint32_t reg, uint32_t clr, uint32_t set)
+{
+	uint32_t val;
+
+	val = mtk_sysctl_get(reg);
+	val &= ~clr;
+	val |= set;
+	mtk_sysctl_set(reg, val);
+}
+
 static int
 mtk_pinctrl_configure(device_t dev, phandle_t cfgxref)
 {
@@ -291,7 +302,7 @@ mtk_pinctrl_configure(device_t dev, phandle_t cfgxref)
 	}
 
 	pconf = value;
-	for (i = 0; i < len; i++, pconf += 4) {
+	for (i = 0; i < len; i++, pconf += 3) {
 		if (pconf[0] != 0x60) {
 			device_printf(dev, "wrong GPIOMODE register 0x%x\n",
 			    pconf[0]);

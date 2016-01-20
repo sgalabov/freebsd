@@ -41,7 +41,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/pci/pcireg.h>
 
 #include <mips/mtk/mtk_sysctlreg.h>
-#include <mips/mtk/mtk_pcireg.h>
+#include <mips/mtk/mtk_pciereg.h>
 #include <mips/mtk/mtk_chip.h>
 #include <mips/mtk/chips/mt7620/mtk_chip_mt7620.h>
 
@@ -93,6 +93,7 @@ mtk_chip_get_cpu_freq(void)
 	return 580000000;
 }
 
+#if 0
 #define MAX_RETRIES	10
 
 static int
@@ -134,10 +135,12 @@ mtk_chip_pci_phy(struct mtk_pci_softc *sc, uint32_t addr, uint32_t val)
 
 	return (0);
 }
+#endif
 
 int
 mtk_chip_pci_phy_init(device_t dev)
 {
+#if 0
 	struct mtk_pci_softc *sc = device_get_softc(dev);
 	uint32_t tmp;
 	int err = 0;
@@ -159,7 +162,7 @@ mtk_chip_pci_phy_init(device_t dev)
 	mtk_sysctl_set(SYSCTL_PPLL_CFG1, tmp);
 	tmp |= (1<<31);
 	mtk_sysctl_set(SYSCTL_PPLL_CFG1, tmp);
-
+#endif
 	return (0);
 }
 
@@ -169,6 +172,7 @@ mtk_chip_pci_init(device_t dev)
 	struct mtk_pci_softc *sc = device_get_softc(dev);
 	uint32_t tmp;
 
+#if 0
 	mtk_sysctl_set(SYSCTL_SYSCFG1,
 		mtk_sysctl_get(SYSCTL_SYSCFG1) | (1 << 8));
 
@@ -194,10 +198,13 @@ mtk_chip_pci_init(device_t dev)
 	mtk_sysctl_set(SYSCTL_PPLL_DRV, tmp);
 	tmp|= (1<<31);
 	mtk_sysctl_set(SYSCTL_PPLL_DRV, tmp);
-
+	MT_WRITE32(sc, MTK_PCI_PCICFG, MT_READ32(sc, 0) | (1<<1));
+	DELAY(500000);
+#endif
 	// Lift reset
 	MT_WRITE32(sc, MTK_PCI_PCICFG, MT_READ32(sc, 0) & ~(1<<1));
 	DELAY(500000);
+
 	if ((MT_READ32(sc, MTK_PCI_PCIE0_STATUS) & 0x1) == 1)
 		sc->pcie_link_status = 1;
 	else

@@ -59,8 +59,7 @@
 			reg = <0x0 0x100>;
 			pinctrl-0 = <&mt7620_pins>;
 			mt7620_pins: pinmux_mt7620_pins {
-			    pinctrl-single,bits = <0x60 0x00000000 0x00030000>,
-						  <0x60 0x00002000 0x00002000>;
+			    pinctrl-single,bits = <0x60 0x00000000 0x00030000>;
 			};
 		    };
 
@@ -195,34 +194,23 @@
 			interrupt-parent = <&cpuintc>;
 	        };
 
-		pci {
-			compatible = "mtk,mtk-pci";
-			reg = <0x10140000 0x20000>;
+		pcie_phy {
+		    compatible = "mtk,pcie-phy";
+		    reg = <0x10140000 0x10000>;
+		    resets = <&sysc 26>;
+		    clocks = <&sysc 26>;
+		    mtk,bypass-reset;
+		    status = "okay";
+		};
+
+		pcie {
+	    		compatible = "mtk,mtk-pci";
+			reg = <0x10140000 0x10000>;
+			ranges = <1 0x10160000 0x00010000
+				  2 0x20000000 0x10000000>;
 			interrupts = <4>;
 			interrupt-parent = <&cpuintc>;
 			status = "okay";
-		};
-	};
-
-	leds {
-		compatible = "gpio-leds";
-
-		red {
-			label = "red";
-			gpios = <&gpio1 12 0x102 0>;
-			default-state = "off";
-		};
-
-		green {
-			label = "green";
-			gpios = <&gpio1 15 0x102 0>;
-			default-state = "on";
-		};
-
-		wifi {
-			label = "wifi";
-			gpios = <&gpio3 0 2 0>;
-			default-state = "off";
 		};
 	};
 };

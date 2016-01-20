@@ -39,7 +39,7 @@ __FBSDID("$FreeBSD$");
 #include <mips/mtk/mtk_sysctlreg.h>
 #include <mips/mtk/mtk_chip.h>
 #include <mips/mtk/chips/mt7621/mtk_chip_mt7621.h>
-#include <mips/mtk/mtk_pcireg.h>
+#include <mips/mtk/mtk_pciereg.h>
 
 void
 mtk_chip_enable_usb_host(void)
@@ -69,6 +69,7 @@ mtk_chip_pci_phy_init(device_t dev __unused)
 #define GPIO_CTRL0	_REG32(0xbe000600)
 #define GPIO_DATA0	_REG32(0xbe000620)
 
+#if 0
 static inline void
 mt7621_set_pcie_phy(struct mtk_pci_softc *sc, uint32_t addr, int start_b,
     int bits, int val)
@@ -147,6 +148,7 @@ mt7621_pci_bypass_pipe_rst(struct mtk_pci_softc *sc)
         mt7621_set_pcie_phy(sc, 0xa02c, 12, 1, 1);
         mt7621_set_pcie_phy(sc, 0xa02c,  4, 1, 1);
 }
+#endif
 
 static inline void
 write_config(struct mtk_pci_softc *sc, uint32_t bus, uint32_t dev,
@@ -232,6 +234,7 @@ mtk_chip_pci_init(device_t dev)
 
         sc->pcie_link_status = 0;
 
+#if 0
         val = PCIE0_RST | PCIE1_RST | PCIE2_RST;
 	mt7621_pci_set_reset(val, 1);
         DELAY(100);
@@ -240,10 +243,10 @@ mtk_chip_pci_init(device_t dev)
         val &= ~((0x3 << PCIE_SHARE_PIN_SW) | (0x3 << UARTL3_SHARE_PIN_SW));
         val |= ((0x1 << PCIE_SHARE_PIN_SW) | (0x1 << UARTL3_SHARE_PIN_SW));
         mtk_sysctl_set(SYSCTL_GPIOMODE, val);
-
+#endif
         val = (0x1 << GPIO_PCIE_PORT0) | (0x1 << GPIO_PCIE_PORT1) |
                 (0x1 << GPIO_PCIE_PORT2);
-	
+
 //        DELAY(50000);
 //	GPIOBUS_PIN_SETFLAGS(busdev, dev, GPIO_PCIE_PORT0, GPIO_PIN_OUTPUT);
         GPIO_CTRL0 |= val;
@@ -252,7 +255,8 @@ mtk_chip_pci_init(device_t dev)
         GPIO_DATA0 &= ~val;
 
         DELAY(100000);
-        
+     
+#if 0   
         val = PCIE0_RST | PCIE1_RST | PCIE2_RST;
         mt7621_pci_set_reset(val, 0);
 
@@ -265,6 +269,7 @@ mtk_chip_pci_init(device_t dev)
                 mt7621_pci_bypass_pipe_rst(sc);
         mt7621_pci_set_phy_for_ssc(sc, 0x9000);
         mt7621_pci_set_phy_for_ssc(sc, 0xa000);
+#endif
 
         val = (1 << GPIO_PCIE_PORT0) | (1 << GPIO_PCIE_PORT1) |
                 (1 << GPIO_PCIE_PORT2);

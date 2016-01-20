@@ -72,6 +72,13 @@
 		    sysc: sysc {
 			compatible="mtk,mtk-sysc", "ralink,rt305x-sysc";
 			reg = <0x0 0x100>;
+
+			pinctrl-0 = <&mt7621_pins>;
+			mt7621_pins: pinmux_mt7621_pins {
+			    /* PCIe reset and UARTL3 pins are GPIO */
+			    pinctrl-single,bits = <0x60 0x00000400 0x00000c00>,
+						  <0x60 0x00000008 0x00000018>;
+			};
 		    };
 
 		    gpio0: gpio@0 {
@@ -129,9 +136,17 @@
 
 		};
 
-		pci {
+		pcie_phy {
+		    compatible = "mtk,pcie-phy";
+		    reg = <0x1e140000 0x10000>;
+		    resets = <&sysc 24>, <&sysc 25>, <&sysc 26>;
+		    clocks = <&sysc 24>, <&sysc 25>, <&sysc 26>;
+		    status = "okay";
+		};
+
+		pcie {
                     compatible = "mtk,mtk-pci";
-                    reg = <0x1e140000 0x20000>;
+                    reg = <0x1e140000 0x10000>;
 		    ranges = <1 0x1e160000 0x00010000
 			      2 0x60000000 0x10000000>;
                     interrupts = <4 24 25>;

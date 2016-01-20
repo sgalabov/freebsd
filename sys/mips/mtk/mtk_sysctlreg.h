@@ -35,6 +35,8 @@
 #define SYSCTL_CHIPID4_7	0x04
 
 #define SYSCTL_REVID		0x0C
+#define SYSCTL_REVID_MASK	0xFFFF
+#define SYSCTL_MT7621_REV_E	0x0101
 
 #define SYSCTL_SYSCFG		0x10
 #define SYSCTL_SYSCFG1		0x14
@@ -48,6 +50,8 @@
 #define SYSCTL_MT7620_CPLL_CFG0	0x54
 #define SYSCTL_MT7620_CPLL_CFG1	0x58
 
+#define SYSCFG1_USB_HOST_MODE	(1<<10)
+
 struct mtk_sysctl_softc {
 	device_t		dev;
 	struct resource		*mem_res;
@@ -59,6 +63,7 @@ struct mtk_sysctl_softc {
 
 extern uint32_t	mtk_sysctl_get(uint32_t);
 extern void	mtk_sysctl_set(uint32_t, uint32_t);
+extern void     mtk_sysctl_clr_set(uint32_t, uint32_t, uint32_t);
 
 enum mtk_chip_id {
 	MTK_CHIP_UNKNOWN,

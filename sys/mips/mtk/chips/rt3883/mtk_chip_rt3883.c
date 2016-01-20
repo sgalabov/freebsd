@@ -39,7 +39,7 @@ __FBSDID("$FreeBSD$");
 #include <mips/mtk/mtk_sysctlreg.h>
 #include <mips/mtk/mtk_chip.h>
 #include <mips/mtk/chips/mt7621/mtk_chip_mt7621.h>
-#include <mips/mtk/mtk_pcireg.h>
+#include <mips/mtk/mtk_pciereg.h>
 
 void
 mtk_chip_enable_usb_host(void)

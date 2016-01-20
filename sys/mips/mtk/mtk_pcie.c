@@ -67,7 +67,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/ofw/ofw_bus.h>
 #include <dev/ofw/ofw_bus_subr.h>
 
-#include <mips/mtk/mtk_pcireg.h>
+#include <mips/mtk/mtk_pciereg.h>
 #include <mips/mtk/mtk_chip.h>
 
 #include "pic_if.h"
