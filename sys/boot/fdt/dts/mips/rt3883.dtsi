@@ -147,8 +147,8 @@
 		    };
 	        };
 
-		usb_phy {
-			compatible = "mtk,usbphy";
+		usbphy {
+			compatible = "mtk,usb-phy";
 			reg;
 			clocks = <&sysc 18>, <&sysc 20>;
 			resets = <&sysc 22>, <&sysc 25>;

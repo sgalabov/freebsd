@@ -136,6 +136,12 @@
 
 		};
 
+		usbphy {
+			compatible = "mtk,usb-phy";
+			reg;
+			status = "okay";
+                };
+
 		pcie {
                     compatible = "mtk,mtk-pci";
                     reg = <0x1e140000 0x10000>;
@@ -147,7 +153,6 @@
                     interrupt-parent = <&intc>;
                     status = "okay";
                 };
-
 
 		rt {
                 	compatible = "mtk,mt7621-eth";

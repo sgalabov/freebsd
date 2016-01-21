@@ -110,6 +110,7 @@ device		mx25l
 device		usb
 device		ehci
 device		ohci
+device		usbphy
 device		umass
 device		da
 device		pass

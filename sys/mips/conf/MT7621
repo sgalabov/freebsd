@@ -110,8 +110,8 @@ device		mtk_spi_new
 device		mx25l
 
 #device		usb
-#device		ehci
-#device		ohci
+#device		usbphy
+#device		xhci
 #device		umass
 #device		da
 #device		pass

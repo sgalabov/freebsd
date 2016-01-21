@@ -84,6 +84,14 @@
 		    };
 	        };
 
+		usbphy {
+			compatible = "mtk,usb-phy";
+			reg;
+			clocks = <&sysc 18>;
+			resets = <&sysc 22>;
+			status = "okay";
+                };
+
 		dotg {
 			compatible = "mtk,mtk-dotg";
 			reg = <0x101C0000 0x40000>;

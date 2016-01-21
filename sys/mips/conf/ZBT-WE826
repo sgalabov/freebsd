@@ -108,6 +108,7 @@ device		spibus
 device		mx25l
 
 device		usb
+device		usbphy
 device		ehci
 device		ohci
 #options 	SCSI_DELAY=1000		# Delay (in ms) before probing SCSI

@@ -160,14 +160,20 @@
 
 	        };
 
+		usbphy {
+			compatible = "mtk,usb-phy";
+			reg;
+			clocks = <&sysc 22>, <&sysc 25>;
+			resets = <&sysc 22>, <&sysc 25>;
+			status = "okay";
+		};
+
 		ohci {
                         compatible = "usb-ohci";
                         reg = <0x101C1000 0x1000>;
                         interrupts = <18>;
                         interrupt-parent = <&intc>;
                         status = "disabled";
-			resets = <&sysc 25>, <&sysc 22>;
-			clocks = <&sysc 25>, <&sysc 22>;
                 };
 
 		ehci {
@@ -176,8 +182,6 @@
 			interrupts = <18>;
 			interrupt-parent = <&intc>;
 			status = "disabled";
-		/*	resets = <&sysc 25>, <&sysc 22>;
-			clocks = <&sysc 25>, <&sysc 22>;*/
 		};
 
 	        rt {
