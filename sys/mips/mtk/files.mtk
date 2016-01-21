@@ -14,7 +14,6 @@ mips/mtk/mtk_usb_phy.c		optional usb usbphy
 #mips/mtk/mtk_ehci.c		optional usb ehci
 #mips/mtk/mtk_dotg.c		optional usb dwcotg
 mips/mtk/mtk_pcie.c		optional pci
-mips/mtk/mtk_pcie_phy.c		optional pci
 mips/mtk/mtk_gpio.c		optional gpio !mtk_gpio_new
 mips/mtk/mtk_gpio_new.c		optional gpio mtk_gpio_new
 mips/mtk/if_rt.c		optional rt

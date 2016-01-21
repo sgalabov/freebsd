@@ -136,19 +136,13 @@
 
 		};
 
-		pcie_phy {
-		    compatible = "mtk,pcie-phy";
-		    reg = <0x1e140000 0x10000>;
-		    resets = <&sysc 24>, <&sysc 25>, <&sysc 26>;
-		    clocks = <&sysc 24>, <&sysc 25>, <&sysc 26>;
-		    status = "okay";
-		};
-
 		pcie {
                     compatible = "mtk,mtk-pci";
                     reg = <0x1e140000 0x10000>;
 		    ranges = <1 0x1e160000 0x00010000
 			      2 0x60000000 0x10000000>;
+		    resets = <&sysc 24>, <&sysc 25>, <&sysc 26>;
+		    clocks = <&sysc 24>, <&sysc 25>, <&sysc 26>;
                     interrupts = <4 24 25>;
                     interrupt-parent = <&intc>;
                     status = "okay";

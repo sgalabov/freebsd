@@ -38,12 +38,11 @@
 struct mtk_pci_softc {
 	device_t		sc_dev;
 
-	uint8_t			has_pci;
-
 	struct resource *	pci_res[4];
 	void *			pci_intrhand[MTK_PCI_NIRQS];
 
 	int			sc_busno;
+	int			sc_cur_secbus;
 
 	struct rman		sc_mem_rman;
 	struct rman		sc_io_rman;
@@ -64,12 +63,15 @@ struct mtk_pci_softc {
 				(PCI_MIN_IO_ALLOC * BITS_PER_UINT32)];
 
 	struct intr_event	*sc_eventstab[MTK_PCI_NIRQS];
-	//mips_intrcnt_t		sc_intr_counter[MTK_PCI_NIRQS];
 
-	int			pcie_link_status;
+	uint32_t		pcie_link_status;
+	uint32_t		num_slots;
+	uint32_t		chipid;
+	uint32_t		addr_mask;
 };
 
 #define MTK_PCI_PCICFG			0x0000
+#define    MTK_PCI_RESET		(1<<1)
 #define MTK_PCI_PCIINT			0x0008
 #define MTK_PCI_PCIENA			0x000C
 #define MTK_PCI_CFGADDR			0x0020
@@ -89,11 +91,65 @@ struct mtk_pci_softc {
 #define MTK_PCI_PCIE0_DLECR		0x2060
 #define MTK_PCI_PCIE0_ECRC		0x2064
 
+#define MTK_PCIE_BAR0SETUP(_s)		(MTK_PCI_PCIE0_BAR0SETUP + (_s)*0x1000)
+#define MTK_PCIE_BAR1SETUP(_s)		(MTK_PCI_PCIE0_BAR1SETUP + (_s)*0x1000)
+#define MTK_PCIE_IMBASEBAR0(_s)		(MTK_PCI_PCIE0_IMBASEBAR0 + (_s)*0x1000)
+#define MTK_PCIE_ID(_s)			(MTK_PCI_PCIE0_ID + (_s)*0x1000)
+#define MTK_PCIE_CLASS(_s)		(MTK_PCI_PCIE0_CLASS + (_s)*0x1000)
+#define MTK_PCIE_SUBID(_s)		(MTK_PCI_PCIE0_SUBID + (_s)*0x1000)
+#define MTK_PCIE_STATUS(_s)		(MTK_PCI_PCIE0_STATUS + (_s)*0x1000)
+
 #define MTK_PCIE0_IRQ			20
 #define MTK_PCIE1_IRQ			21
 #define MTK_PCIE2_IRQ			22
 
 #define MTK_PCI_INTR_PIN		2
+
+/* Chip specific defines */
+#define MT7620_MAX_RETRIES	10
+#define MT7620_PCIE_PHY_CFG	0x90
+#define    PHY_BUSY		(1<<31)
+#define    PHY_MODE_WRITE	(1<<23)
+#define    PHY_ADDR_OFFSET	8
+#define MT7620_PPLL_CFG0	0x98
+#define    PPLL_SW_SET		(1<<31)
+#define MT7620_PPLL_CFG1	0x9c
+#define    PPLL_PD		(1<<26)
+#define    PPLL_LOCKED		(1<<23)
+#define MT7620_PPLL_DRV		0xa0
+#define   PDRV_SW_SET		(1<<31)
+#define   LC_CKDRVPD		(1<<19)
+#define   LC_CKDRVOHZ		(1<<18)
+#define   LC_CKDRVHZ		(1<<17)
+#define MT7620_PERST_GPIO_MODE	(3<<16)
+#define   MT7620_PERST		(0<<16)
+#define   MT7620_GPIO		(2<<16)
+#define MT7620_PKG_BGA		(1<<16)
+
+#define MT7628_PERST_GPIO_MODE	(1<<16)
+#define   MT7628_PERST		(0<<16)
+
+#define MT7621_PERST_GPIO_MODE	(3<<10)
+#define   MT7621_PERST_GPIO	(1<<10)
+#define MT7621_UARTL3_GPIO_MODE	(3<<3)
+#define   MT7621_UARTL3_GPIO	(1<<3)
+#define MT7621_PCIE0_RST	(1<<19)
+#define MT7621_PCIE1_RST	(1<<8)
+#define MT7621_PCIE2_RST	(1<<7)
+#define MT7621_PCIE_RST		(MT7621_PCIE0_RST | MT7621_PCIE1_RST | \
+				 MT7621_PCIE2_RST)
+
+#define RT3883_PCI_RST		(1<<24)
+#define RT3883_PCI_CLK		(1<<19)
+#define RT3883_PCI_HOST_MODE	(1<<7)
+#define RT3883_PCIE_RC_MODE	(1<<8)
+
+#define RT6856_DETECT_REG	0x8c
+#define   RT6856_SHIFT		0x08
+#define   RT6856_MASK		0x07
+#define   RT6856_IS_RT6855	0x04
+#define   RT6856_IS_RT6856	0x06
+/* End of chip specific defines */
 
 #define MT_WRITE32(sc, off, val) \
 	bus_write_4((sc)->pci_res[0], (off), (val))
@@ -108,7 +164,7 @@ struct mtk_pci_softc {
 #define MT_READ8(sc, off) \
 	bus_read_1((sc)->pci_res[0], (off))
 
-uint32_t mtk_pci_read_config(device_t, u_int, u_int, u_int, u_int, int);
-void mtk_pci_write_config(device_t, u_int, u_int, u_int, u_int, uint32_t, int);
+#define MT_CLR_SET32(sc, off, clr, set)	\
+	MT_WRITE32((sc), (off), ((MT_READ32((sc), (off)) & ~(clr)) | (off)))
 
 #endif /* __MTK_PCIREG_H__ */

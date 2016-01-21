@@ -57,10 +57,12 @@
 		    sysc: sysc {
 			compatible="mtk,mtk-sysc", "ralink,rt305x-sysc";
 			reg = <0x0 0x100>;
+/*
 			pinctrl-0 = <&mt7620_pins>;
 			mt7620_pins: pinmux_mt7620_pins {
 			    pinctrl-single,bits = <0x60 0x00000000 0x00030000>;
 			};
+*/
 		    };
 
 		    spi0 {
@@ -194,20 +196,13 @@
 			interrupt-parent = <&cpuintc>;
 	        };
 
-		pcie_phy {
-		    compatible = "mtk,pcie-phy";
-		    reg = <0x10140000 0x10000>;
-		    resets = <&sysc 26>;
-		    clocks = <&sysc 26>;
-		    mtk,bypass-reset;
-		    status = "okay";
-		};
-
 		pcie {
 	    		compatible = "mtk,mtk-pci";
 			reg = <0x10140000 0x10000>;
 			ranges = <1 0x10160000 0x00010000
 				  2 0x20000000 0x10000000>;
+			resets = <&sysc 26>;
+			clocks = <&sysc 26>;
 			interrupts = <4>;
 			interrupt-parent = <&cpuintc>;
 			status = "okay";

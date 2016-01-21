@@ -163,11 +163,13 @@
                         status = "okay";
                 };
 
-		pci {
+		pcie {
                     compatible = "mtk,mtk-pci";
                     reg = <0x10140000 0x20000>;
                     ranges = <1 0x10160000 0x00010000
                               2 0x20000000 0x10000000>;
+		    resets = <&sysc 23>;
+		    clocks = <&sysc 21>;
                     interrupts = <4>;
                     interrupt-parent = <&cpuintc>;
                     status = "okay";

@@ -22,7 +22,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * This is based on the pci allocator code from sys/dev/arm/mv/:
+ * The pci allocator parts are based on code from sys/dev/arm/mv/:
  *
  * Copyright (c) 2008 MARVELL INTERNATIONAL LTD.
  * Copyright (c) 2010 The FreeBSD Foundation
@@ -60,44 +60,58 @@ __FBSDID("$FreeBSD$");
 #include <dev/pci/pcireg.h>
 
 #include <dev/pci/pcib_private.h>
-#include "pcib_if.h"
 
 #include <dev/fdt/fdt_common.h>
+#include <dev/fdt/fdt_reset.h>
+#include <dev/fdt/fdt_clock.h>
 #include <dev/ofw/openfirm.h>
 #include <dev/ofw/ofw_bus.h>
 #include <dev/ofw/ofw_bus_subr.h>
 
 #include <mips/mtk/mtk_pciereg.h>
-#include <mips/mtk/mtk_chip.h>
+#include <mips/mtk/mtk_sysctlreg.h>
 
+#include "pcib_if.h"
 #include "pic_if.h"
 
+/*
+ * Note: We only support PCIe at the moment.
+ * Most chips in the Ralink/Mediatek family that we target actually don't
+ * support PCI anyway, with the notable exceptions being RT3662/RT3883, which
+ * support both PCI and PCIe. If there exists a board based on one of them
+ * which is of interest in the future it shouldn't be too hard to enable PCI
+ * support for it.
+ */
+
+/* conditionally enable/disable some code below */
+#define BUS_SPACE_FDT_REMOVED 1
+
+/* Chip specific function declarations */
+static int  mtk_pcie_phy_init(device_t);
+static int  mtk_pcie_phy_start(device_t);
+static int  mtk_pcie_phy_stop(device_t);
+static int  mtk_pcie_phy_mt7621_init(device_t);
+static int  mtk_pcie_phy_mt7628_init(device_t);
+static int  mtk_pcie_phy_mt7620_init(device_t);
+static int  mtk_pcie_phy_rt3883_init(device_t);
+static int  mtk_pcie_phy_rt6856_init(device_t);
+static void mtk_pcie_phy_setup_slots(device_t);
+
+/* Generic declarations */
 struct mtx mtk_pci_mtx;
-MTX_SYSINIT(mtk_pci_mtx, &mtk_pci_mtx, "MTK PCI/PCIe mutex", MTX_SPIN);
+MTX_SYSINIT(mtk_pci_mtx, &mtk_pci_mtx, "MTK PCIe mutex", MTX_SPIN);
 
 static int mtk_pcib_init(device_t, int, int);
 static int mtk_pci_intr(void *);
 
 static struct mtk_pci_softc *mt_sc = NULL;
 
-static struct resource_spec mtk_pci_spec[] = {
-	{ SYS_RES_MEMORY,	0,	RF_ACTIVE },
-	{ SYS_RES_IRQ,		0,	RF_ACTIVE },
-	{ SYS_RES_IRQ,		1,	RF_ACTIVE | RF_OPTIONAL },
-	{ SYS_RES_IRQ,		2,	RF_ACTIVE | RF_OPTIONAL },
-	{ -1, 0, 0 }
-};
-
 struct mtk_pci_range {
 	u_long	base;
 	u_long	len;
 };
 
-#if 0
-#define FDT_RANGES_CELLS	((3 + 3 + 2) * 2)
-#else
 #define FDT_RANGES_CELLS	(3 * 2)
-#endif
 
 static void
 mtk_pci_range_dump(struct mtk_pci_range *range)
@@ -122,15 +136,21 @@ mtk_pci_ranges_decode(phandle_t node, struct mtk_pci_range *io_space,
 	/*
 	 * Retrieve 'ranges' property.
 	 */
-	if (!OF_hasprop(node, "ranges"))
+	if (!OF_hasprop(node, "ranges")) {
+		printf("%s: %d\n", __FUNCTION__, 1);
 		return (EINVAL);
+	}
 
 	len = OF_getproplen(node, "ranges");
-	if (len > sizeof(ranges))
+	if (len > sizeof(ranges)) {
+		printf("%s: %d\n", __FUNCTION__, 2);
 		return (ENOMEM);
+	}
 
-	if (OF_getprop(node, "ranges", ranges, sizeof(ranges)) <= 0)
+	if (OF_getprop(node, "ranges", ranges, sizeof(ranges)) <= 0) {
+		printf("%s: %d\n", __FUNCTION__, 3);
 		return (EINVAL);
+	}
 
 	tuples = len / (sizeof(pcell_t) * 3);
 
@@ -157,6 +177,7 @@ mtk_pci_ranges_decode(phandle_t node, struct mtk_pci_range *io_space,
 			pci_space = io_space;
 		} else {
 			rv = ERANGE;
+			printf("%s: %d\n", __FUNCTION__, 4);
 			goto out;
 		}
 
@@ -207,40 +228,62 @@ mtk_pci_attach(device_t dev)
 	struct mtk_pci_range io_space, mem_space;
 	phandle_t node;
 	intptr_t xref;
-	int i;
-
-	sc->has_pci = 0;
-
-	if (bus_alloc_resources(dev, mtk_pci_spec, sc->pci_res)) {
-		device_printf(dev, "could not allocate resources\n");
-		return (ENXIO);
-	}
-
-	/* See how many interrupts we were given */
-	sc->sc_num_irq = 0;
-	for (i = 1; i < 4; i++)
-		if (sc->pci_res[i] != NULL)
-			sc->sc_num_irq++;
-	sc->sc_irq_start = MTK_PCIE0_IRQ;
-	sc->sc_irq_end = MTK_PCIE2_IRQ; //sc->sc_irq_start + sc->sc_num_irq - 1;
+	int i, rid;
 
 	sc->sc_dev = dev;
 	mt_sc = sc;
+	sc->addr_mask = 0xffffffff;
+
+	/* Request our memory */
+	rid = 0;
+	sc->pci_res[0] = bus_alloc_resource_any(dev, SYS_RES_MEMORY, &rid,
+			    RF_ACTIVE);
+	if (sc->pci_res[0] == NULL) {
+		device_printf(dev, "could not allocate memory resource\n");
+		return (ENXIO);
+	}
+
+	/* See how many interrupts we need */
+	sc->chipid = mtk_chip_get_chipid();
+	if (sc->chipid == MTK_CHIP_MT7621)
+		sc->sc_num_irq = 3;
+	else {
+		sc->sc_num_irq = 1;
+		sc->pci_res[2] = sc->pci_res[3] = NULL;
+		sc->pci_intrhand[1] = sc->pci_intrhand[2] = NULL;
+	}
+
+	/* Request our interrupts */	
+	for (i = 1; i <= sc->sc_num_irq ; i++) {
+		rid = i - 1;
+		sc->pci_res[i] = bus_alloc_resource_any(dev, SYS_RES_IRQ, &rid,
+				     RF_ACTIVE);
+		if (sc->pci_res[i] == NULL) {
+			device_printf(dev, "could not allocate interrupt "
+			    "resource %d\n", rid);
+			goto cleanup_res;
+		}
+	}
+
+	/* Parse our PCI 'ranges' property */
 	node = ofw_bus_get_node(dev);
 	xref = OF_xref_from_node(node);
-
 	if (mtk_pci_ranges(node, &io_space, &mem_space)) {
 		device_printf(dev, "could not retrieve 'ranges' data\n");
 		goto cleanup_res;
 	}
 
+	/* Memory, I/O and IRQ resource limits */
 	sc->sc_io_base = io_space.base;
 	sc->sc_io_size = io_space.len;
 	sc->sc_mem_base = mem_space.base;
 	sc->sc_mem_size = mem_space.len;
+	sc->sc_irq_start = MTK_PCIE0_IRQ;
+	sc->sc_irq_end = MTK_PCIE2_IRQ;
 
+	/* Init resource managers for memory, I/O and IRQ */
 	sc->sc_mem_rman.rm_type = RMAN_ARRAY;
-	sc->sc_mem_rman.rm_descr = "mtk pci memory window";
+	sc->sc_mem_rman.rm_descr = "mtk pcie memory window";
 	if (rman_init(&sc->sc_mem_rman) != 0 ||
 	    rman_manage_region(&sc->sc_mem_rman, sc->sc_mem_base,
 	    sc->sc_mem_base + sc->sc_mem_size - 1) != 0) {
@@ -249,7 +292,7 @@ mtk_pci_attach(device_t dev)
 	}
 
 	sc->sc_io_rman.rm_type = RMAN_ARRAY;
-	sc->sc_io_rman.rm_descr = "mtk pci io window";
+	sc->sc_io_rman.rm_descr = "mtk pcie io window";
 	if (rman_init(&sc->sc_io_rman) != 0 ||
 	    rman_manage_region(&sc->sc_io_rman, sc->sc_io_base,
 	    sc->sc_io_base + sc->sc_io_size - 1) != 0) {
@@ -258,7 +301,7 @@ mtk_pci_attach(device_t dev)
 	}
 
 	sc->sc_irq_rman.rm_type = RMAN_ARRAY;
-	sc->sc_irq_rman.rm_descr = "mtk pci irqs";
+	sc->sc_irq_rman.rm_descr = "mtk pcie irqs";
 	if (rman_init(&sc->sc_irq_rman) != 0 ||
 	    rman_manage_region(&sc->sc_irq_rman, sc->sc_irq_start,
 	    sc->sc_irq_end) != 0) {
@@ -266,17 +309,21 @@ mtk_pci_attach(device_t dev)
 		goto cleanup_res;
 	}
 
-	if(mtk_chip_pci_phy_init(dev) || mtk_chip_pci_init(dev)) {
-		device_printf(dev, "pci phy init failed\n");
+	/* Do chip-specific PCIe initialization */
+	if (mtk_pcie_phy_init(dev)) {
+		device_printf(dev, "pcie phy init failed\n");
 		goto cleanup_rman;
 	}
 
+	/* Register ourselves as an interrupt controller */
 	if (intr_pic_register(dev, xref) != 0) {
 		device_printf(dev, "could not register PIC\n");
 		goto cleanup_rman;
 	}
 
-	for (i = 1; i < 1 + sc->sc_num_irq; i++) {
+	/* Set up our interrupt handler */
+	for (i = 1; i <= sc->sc_num_irq; i++) {
+		sc->pci_intrhand[i - 1] = NULL;
 		if (bus_setup_intr(dev, sc->pci_res[i], INTR_TYPE_MISC,
 		    mtk_pci_intr, NULL, sc, &sc->pci_intrhand[i - 1])) {
 			device_printf(dev, "could not setup intr handler %d\n",
@@ -285,15 +332,16 @@ mtk_pci_attach(device_t dev)
 		}
 	}
 
-	device_printf(dev, "interrupts registered\n");
-
+	/* Do generic PCIe initialization and resource allocation */
 	mtk_pcib_init(dev, 0, PCI_SLOTMAX);
 
+	/* Attach our PCI child so bus enumeration can start */
 	if (device_add_child(dev, "pci", -1) == NULL) {
 		device_printf(dev, "could not attach pci bus\n");
 		goto cleanup;
 	}
 
+	/* And finally, attach ourselves to the bus */
 	if (bus_generic_attach(dev)) {
 		device_printf(dev, "could not attach to bus\n");
 		goto cleanup;
@@ -305,18 +353,26 @@ cleanup:
 #ifdef notyet
 	intr_pic_unregister(dev, xref);
 #endif
-	for (i = 1; i < 4; i++) {
+	for (i = 1; i <= sc->sc_num_irq; i++) {
 		if (sc->pci_intrhand[i - 1] != NULL)
 			bus_teardown_intr(dev, sc->pci_res[i],
 			    sc->pci_intrhand[i - 1]);
 	}
 cleanup_rman:
+	mtk_pcie_phy_stop(dev);
 	rman_fini(&sc->sc_irq_rman);
 	rman_fini(&sc->sc_io_rman);
 	rman_fini(&sc->sc_mem_rman);
 cleanup_res:
 	mt_sc = NULL;
-	bus_release_resources(dev, mtk_pci_spec, sc->pci_res);
+	if (sc->pci_res[0] != NULL)
+		bus_release_resource(dev, SYS_RES_MEMORY, 0, sc->pci_res[0]);
+	if (sc->pci_res[1] != NULL)
+		bus_release_resource(dev, SYS_RES_IRQ, 0, sc->pci_res[1]);
+	if (sc->pci_res[2] != NULL)
+		bus_release_resource(dev, SYS_RES_IRQ, 1, sc->pci_res[2]);
+	if (sc->pci_res[3] != NULL)
+		bus_release_resource(dev, SYS_RES_IRQ, 2, sc->pci_res[3]);
 	return (ENXIO);
 }
 
@@ -360,7 +416,7 @@ mtk_pci_alloc_resource(device_t bus, device_t child, int type, int *rid,
 	struct mtk_pci_softc *sc = device_get_softc(bus);
 	struct resource *rv;
 	struct rman *rm;
-#if 0
+#ifndef BUS_SPACE_FDT_REMOVED
 	vm_offset_t va;
 #endif
 
@@ -385,13 +441,18 @@ mtk_pci_alloc_resource(device_t bus, device_t child, int type, int *rid,
 
 	rman_set_rid(rv, *rid);
 
-#if 0 /* mips bus_space code should now take care of this */
+#ifndef BUS_SPACE_FDT_REMOVED
+	/* mips bus_space code should now take care of this */
 	if (type != SYS_RES_IRQ) {
+#if 1
+		va = (vm_offset_t)pmap_mapdev(start, count);
+#else
 		if (type == SYS_RES_MEMORY) {
 			va = (vm_offset_t)pmap_mapdev(start, count);
 		} else if (type == SYS_RES_IOPORT){
 			va = (vm_offset_t)MIPS_PHYS_TO_KSEG1(start);
 		}
+#endif
 		rman_set_bushandle(rv, va);
 		rman_set_virtual(rv, (void *)va);
 		rman_set_bustag(rv, mips_bus_space_generic);
@@ -408,7 +469,7 @@ mtk_pci_alloc_resource(device_t bus, device_t child, int type, int *rid,
 	return (rv);
 }
 
-#if 0
+#ifndef BUS_SPACE_FDT_REMOVED
 static int
 mtk_pci_activate_resource(device_t bus, device_t child, int type, int rid,
 	struct resource *r)
@@ -475,8 +536,6 @@ mtk_pci_setup_intr(device_t bus, device_t child, struct resource *ires,
 
 		if (error == 0) {
 			sc->sc_eventstab[irqidx] = event;
-	//		sc->sc_intr_counter[irqidx] =
-	//		    mips_intrcnt_create(event->ie_name);
 		}
 		else {
 			return (error);
@@ -485,8 +544,6 @@ mtk_pci_setup_intr(device_t bus, device_t child, struct resource *ires,
 
 	intr_event_add_handler(event, device_get_nameunit(child), filt,
 		handler, arg, intr_priority(flags), flags, cookiep);
-
-	//mips_intrcnt_setname(sc->sc_intr_counter[irqidx], event->ie_fullname);
 
 	mtk_pci_unmask_irq((void*)irq);
 
@@ -501,9 +558,10 @@ mtk_pci_teardown_intr(device_t dev, device_t child, struct resource *ires,
 	int irq, result, irqidx;
 
 	irq = rman_get_start(ires);
-	if ((irqidx = mtk_irq_to_idx(irq)) == -1)
-		panic("%s: bad irq %d", __FUNCTION__, irq);
+	if (irq < sc->sc_irq_start || irq > sc->sc_irq_end)
+		return (EINVAL);
 
+	irqidx = irq - sc->sc_irq_start;
 	if (sc->sc_eventstab[irqidx] == NULL)
 		panic("Trying to teardown unoccupied IRQ");
 
@@ -512,6 +570,7 @@ mtk_pci_teardown_intr(device_t dev, device_t child, struct resource *ires,
 	result = intr_event_remove_handler(cookie);
 	if (!result)
 		sc->sc_eventstab[irqidx] = NULL;
+	
 
 	return (result);
 }
@@ -521,10 +580,8 @@ mtk_pci_make_addr(int bus, int slot, int func, int reg)
 {
 	uint32_t addr;
 
-	//reg &= 0xff;
-
-	addr = (((reg & 0xf00) >> 8) << 24) | (bus << 16) | (slot << 11) |
-		(func << 8) | (reg & 0xfc) | (1 << 31);
+	addr = ((((reg & 0xf00) >> 8) << 24) | (bus << 16) | (slot << 11) |
+		(func << 8) | (reg & 0xfc) | (1 << 31));
 
 	return (addr);
 }
@@ -541,30 +598,23 @@ mtk_pci_slot_has_link(device_t dev, int slot)
 {
 	struct mtk_pci_softc *sc = device_get_softc(dev);
 
-	if (sc->has_pci && slot >= 0x10) return 1;
-                
 	return !!(sc->pcie_link_status & (1<<slot));
 }
 
-uint32_t
+static uint32_t
 mtk_pci_read_config(device_t dev, u_int bus, u_int slot, u_int func,
 	u_int reg, int bytes)
 {
 	struct mtk_pci_softc *sc = device_get_softc(dev);
 	uint32_t addr = 0, data = 0;
 
-	//printf("%s: bus %d link %d... ", __FUNCTION__, bus,
-	//    sc->pcie_link_status & (1<<slot));
-
+	/* Return ~0U if slot has no link */
 	if (bus == 0 && mtk_pci_slot_has_link(dev, slot) == 0) {
-		//printf("fail, return 0x%08x\n", ~0U);
 		return (~0U);
 	}
 
-	//printf("pass, ");
-
 	mtx_lock_spin(&mtk_pci_mtx);
-	addr = mtk_pci_make_addr(bus, slot, func, (reg & ~3));
+	addr = mtk_pci_make_addr(bus, slot, func, (reg & ~3)) & sc->addr_mask;
 	MT_WRITE32(sc, MTK_PCI_CFGADDR, addr);
 	switch (bytes % 4) {
 	case 0:
@@ -582,28 +632,22 @@ mtk_pci_read_config(device_t dev, u_int bus, u_int slot, u_int func,
 	}
 	mtx_unlock_spin(&mtk_pci_mtx);
 
-	//printf("return 0x%08x\n", data);
-
 	return (data);
 }
 
-void
+static void
 mtk_pci_write_config(device_t dev, u_int bus, u_int slot, u_int func,
 	u_int reg, uint32_t val, int bytes)
 {
 	struct mtk_pci_softc *sc = device_get_softc(dev);
 	uint32_t addr = 0, data = val;
 
-	//printf("%s: bus %d link %d... ", __FUNCTION__, bus,
-	    //sc->pcie_link_status & (1<<slot));
-
-	if (bus == 0 && mtk_pci_slot_has_link(dev, slot) == 0) {
-		//printf("fail, no write\n");
+	/* Do not write if slot has no link */
+	if (bus == 0 && mtk_pci_slot_has_link(dev, slot) == 0)
 		return;
-	}
 
 	mtx_lock_spin(&mtk_pci_mtx);
-	addr = mtk_pci_make_addr(bus, slot, func, (reg & ~3));
+	addr = mtk_pci_make_addr(bus, slot, func, (reg & ~3)) & sc->addr_mask;
 	MT_WRITE32(sc, MTK_PCI_CFGADDR, addr);
 	switch (bytes % 4) {
 	case 0:
@@ -620,10 +664,10 @@ mtk_pci_write_config(device_t dev, u_int bus, u_int slot, u_int func,
 			__FUNCTION__, bytes % 4);
 	}
 	mtx_unlock_spin(&mtk_pci_mtx);
-	//printf("pass, written\n");
 }
 
 #if 0
+/* We take care of interrupt routing in the allocator code below */
 static int
 mtk_pci_route_interrupt(device_t pcib, device_t device, int pin)
 {
@@ -666,10 +710,10 @@ static device_method_t mtk_pci_methods[] = {
 	DEVMETHOD(bus_write_ivar,	mtk_pci_write_ivar),
 	DEVMETHOD(bus_alloc_resource,	mtk_pci_alloc_resource),
 	DEVMETHOD(bus_release_resource,	bus_generic_release_resource),
-#if 0
-	DEVMETHOD(bus_activate_resource,   mtk_pci_activate_resource),
-#else
+#ifdef BUS_SPACE_FDT_REMOVED
 	DEVMETHOD(bus_activate_resource,   bus_generic_activate_resource),
+#else
+	DEVMETHOD(bus_activate_resource,   mtk_pci_activate_resource),
 #endif
 	DEVMETHOD(bus_deactivate_resource, bus_generic_deactivate_resource),
 	DEVMETHOD(bus_setup_intr,	mtk_pci_setup_intr),
@@ -696,6 +740,7 @@ static devclass_t mtk_pci_devclass;
 
 DRIVER_MODULE(mtk_pci, simplebus, mtk_pci_driver, mtk_pci_devclass, 0, 0);
 
+/* Resource allocation code */
 static inline uint32_t
 pcib_bit_get(uint32_t *map, uint32_t bit)
 {
@@ -822,8 +867,6 @@ mtk_pcib_init_all_bars(device_t dev, int bus, int slot, int func,
 	return (0);
 }
 
-static int cur_secbus = 0;
-
 static void
 mtk_pcib_init_bridge(device_t dev, int bus, int slot, int func)
 {
@@ -833,7 +876,9 @@ mtk_pcib_init_bridge(device_t dev, int bus, int slot, int func)
 	int secbus;
 
 	if (bus == 0 && !mtk_pci_slot_has_link(dev, slot)) {
-		device_printf(dev, "Skip bus %d due to no link\n",++cur_secbus);
+		sc->sc_cur_secbus++;
+		device_printf(dev, "Skip bus %d due to no link\n",
+		    sc->sc_cur_secbus);
 		return;
 	}
 
@@ -870,11 +915,12 @@ mtk_pcib_init_bridge(device_t dev, int bus, int slot, int func)
 	secbus = mtk_pci_read_config(dev, bus, slot, func, PCIR_SECBUS_1, 1);
 
 	if (secbus == 0) {
+		sc->sc_cur_secbus++;
 		mtk_pci_write_config(dev, bus, slot, func, PCIR_SECBUS_1,
-			++cur_secbus, 1);
+			sc->sc_cur_secbus, 1);
 		mtk_pci_write_config(dev, bus, slot, func, PCIR_SUBBUS_1,
-			cur_secbus, 1);
-		secbus = cur_secbus;
+			sc->sc_cur_secbus, 1);
+		secbus = sc->sc_cur_secbus;
 	}
 
 	mtk_pcib_init(dev, secbus, PCI_SLOTMAX);
@@ -964,6 +1010,7 @@ mtk_pcib_init(device_t dev, int bus, int maxslot)
 	return (0);
 }
 
+/* Our interrupt handler */
 static int
 mtk_pci_intr(void *arg)
 {
@@ -984,9 +1031,518 @@ mtk_pci_intr(void *arg)
 			}
 
 			intr_event_handle(event, NULL);
-			//mips_intrcnt_inc(sc->sc_intr_counter[irqidx]);
 		}
 	}
 
 	return (FILTER_HANDLED);
+}
+
+/* PCIe chip-specific initialization */
+static int
+mtk_pcie_phy_init(device_t dev)
+{
+	struct mtk_pci_softc *sc;
+
+	/* Get our softc */
+	sc = device_get_softc(dev);
+
+	/* Get our chip ID */
+	sc->chipid = mtk_chip_get_chipid();
+
+	/* We don't know how many slots we have yet */
+	sc->num_slots = 0;
+
+	/* Handle chip specific PCIe init */
+	switch (sc->chipid) {
+	case MTK_CHIP_MT7628: /* Fallthrough */
+	case MTK_CHIP_MT7688:
+		if (mtk_pcie_phy_mt7628_init(dev))
+			return (ENXIO);
+		break;
+	case MTK_CHIP_MT7621:
+		if (mtk_pcie_phy_mt7621_init(dev))
+			return (ENXIO);
+		break;
+	case MTK_CHIP_MT7620:
+		if (mtk_pcie_phy_mt7620_init(dev))
+			return (ENXIO);
+		break;
+	case MTK_CHIP_RT3662: /* Fallthrough */
+	case MTK_CHIP_RT3883:
+		if (mtk_pcie_phy_rt3883_init(dev))
+			return (ENXIO);
+		break;
+	case MTK_CHIP_RT6855: /* Fallthrough */
+	case MTK_CHIP_RT6856:
+		if (mtk_pcie_phy_rt6856_init(dev))
+			return (ENXIO);
+		break;
+	default:
+		device_printf(dev, "unsupported device %x\n", sc->chipid);
+		return (ENXIO);
+	}
+
+	/*
+	 * If we were successful so far go and set up the PCIe slots, so we
+	 * may allocate mem/io/irq resources and enumerate busses later.
+	 */
+	mtk_pcie_phy_setup_slots(dev);
+
+	return (0);
+}
+
+static int
+mtk_pcie_phy_start(device_t dev)
+{
+	struct mtk_pci_softc *sc = device_get_softc(dev);
+
+	if (sc->chipid == MTK_CHIP_MT7621 &&
+	    (mtk_sysctl_get(SYSCTL_REVID) & SYSCTL_REVID_MASK) !=
+	    SYSCTL_MT7621_REV_E) {
+		if (fdt_reset_assert_all(dev))
+			return (ENXIO);
+	} else {
+		if (fdt_reset_deassert_all(dev))
+			return (ENXIO);
+	}
+
+	if (fdt_clock_enable_all(dev))
+		return (ENXIO);
+
+	return (0);
+}
+
+static int
+mtk_pcie_phy_stop(device_t dev)
+{
+	struct mtk_pci_softc *sc = device_get_softc(dev);
+
+	if (sc->chipid == MTK_CHIP_MT7621 &&
+	    (mtk_sysctl_get(SYSCTL_REVID) & SYSCTL_REVID_MASK) !=
+	    SYSCTL_MT7621_REV_E) {
+		if (fdt_reset_deassert_all(dev))
+			return (ENXIO);
+	} else {
+		if (fdt_reset_assert_all(dev))
+			return (ENXIO);
+	}
+
+	if (fdt_clock_disable_all(dev))
+		return (ENXIO);
+
+	return (0);
+}
+
+#define mtk_pcie_phy_set(_sc, _reg, _start, _num, _val)		\
+    MT_CLR_SET32((_sc), (_reg), (_num) == 32 ? 0xffffffff :	\
+		     (((1u << (_num)) - 1) << (_start)),	\
+		     ((_val) << (_start)))
+static void
+mtk_pcie_phy_mt7621_bypass_pipe_rst(struct mtk_pci_softc *sc, uint32_t off)
+{
+
+	mtk_pcie_phy_set(sc, off + 0x002c, 12, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x002c,  4, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x012c, 12, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x012c,  4, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x102c, 12, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x102c,  4, 1, 1);
+}
+
+static void
+mtk_pcie_phy_mt7621_setup_ssc(struct mtk_pci_softc *sc, uint32_t off)
+{
+	uint32_t xtal_sel;
+
+	xtal_sel = mtk_sysctl_get(SYSCTL_SYSCFG) >> 6;
+	xtal_sel &= 0x7;
+
+	mtk_pcie_phy_set(sc, off + 0x400, 8, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x400, 9, 2, 0);
+	mtk_pcie_phy_set(sc, off + 0x000, 4, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x100, 4, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x000, 5, 1, 0);
+	mtk_pcie_phy_set(sc, off + 0x100, 5, 1, 0);
+
+	if (xtal_sel <= 5 && xtal_sel >= 3) {
+		mtk_pcie_phy_set(sc, off + 0x490,  6,  2, 1);
+		mtk_pcie_phy_set(sc, off + 0x4a8,  0, 12, 0x1a);
+		mtk_pcie_phy_set(sc, off + 0x4a8, 16, 12, 0x1a);
+	} else {
+		mtk_pcie_phy_set(sc, off + 0x490,  6,  2, 0);
+		if (xtal_sel >= 6) {
+			mtk_pcie_phy_set(sc, off + 0x4bc,  4,  2, 0x01);
+			mtk_pcie_phy_set(sc, off + 0x49c,  0, 31, 0x18000000);
+			mtk_pcie_phy_set(sc, off + 0x4a4,  0, 16, 0x18d);
+			mtk_pcie_phy_set(sc, off + 0x4a8,  0, 12, 0x4a);
+			mtk_pcie_phy_set(sc, off + 0x4a8, 16, 12, 0x4a);
+			mtk_pcie_phy_set(sc, off + 0x4a8,  0, 12, 0x11);
+			mtk_pcie_phy_set(sc, off + 0x4a8, 16, 12, 0x11);
+		} else {
+			mtk_pcie_phy_set(sc, off + 0x4a8,  0, 12, 0x1a);
+			mtk_pcie_phy_set(sc, off + 0x4a8, 16, 12, 0x1a);
+		}
+	}
+
+	mtk_pcie_phy_set(sc, off + 0x4a0,  5, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x490, 22, 2, 2);
+	mtk_pcie_phy_set(sc, off + 0x490, 18, 4, 6);
+	mtk_pcie_phy_set(sc, off + 0x490, 12, 4, 2);
+	mtk_pcie_phy_set(sc, off + 0x490,  8, 4, 1);
+	mtk_pcie_phy_set(sc, off + 0x4ac, 16, 3, 0);
+	mtk_pcie_phy_set(sc, off + 0x490,  1, 3, 2);
+
+	if (xtal_sel <= 5 && xtal_sel >= 3) {
+		mtk_pcie_phy_set(sc, off + 0x414, 6, 2, 1);
+		mtk_pcie_phy_set(sc, off + 0x414, 5, 1, 1);
+	}
+
+	mtk_pcie_phy_set(sc, off + 0x414, 28, 2, 1);
+	mtk_pcie_phy_set(sc, off + 0x040, 17, 4, 7);
+	mtk_pcie_phy_set(sc, off + 0x040, 16, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x140, 17, 4, 7);
+	mtk_pcie_phy_set(sc, off + 0x140, 16, 1, 1);
+
+	mtk_pcie_phy_set(sc, off + 0x000,  5, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x100,  5, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x000,  4, 1, 0);
+	mtk_pcie_phy_set(sc, off + 0x100,  4, 1, 0);
+}
+
+/* XXX: ugly, we need to fix this at some point */
+#define MT7621_GPIO_CTRL0	*((volatile uint32_t *)0xbe000600)
+#define MT7621_GPIO_DATA0	*((volatile uint32_t *)0xbe000620)
+
+#define mtk_gpio_clr_set(_reg, _clr, _set)		\
+	do {						\
+		(_reg) = ((_reg) & (_clr)) | (_set);	\
+	} while (0)
+
+static int
+mtk_pcie_phy_mt7621_init(device_t dev)
+{
+	struct mtk_pci_softc *sc = device_get_softc(dev);
+
+	/* First off, stop the PHY */
+	if (mtk_pcie_phy_stop(dev))
+		return (ENXIO);
+
+	/* PCIe resets are GPIO pins */
+	mtk_sysctl_clr_set(SYSCTL_GPIOMODE, MT7621_PERST_GPIO_MODE |
+	    MT7621_UARTL3_GPIO_MODE, MT7621_PERST_GPIO | MT7621_UARTL3_GPIO);
+
+	/* Set GPIO pins as outputs */
+	mtk_gpio_clr_set(MT7621_GPIO_CTRL0, 0, MT7621_PCIE_RST);
+
+	/* Assert resets to PCIe devices */
+	mtk_gpio_clr_set(MT7621_GPIO_DATA0, MT7621_PCIE_RST, 0);
+
+	/* Give everything a chance to sink in */
+	DELAY(100000);
+
+	/* Now start the PHY again */
+	if (mtk_pcie_phy_start(dev))
+		return (ENXIO);
+
+	/* Only apply below to REV-E hardware */
+	if ((mtk_sysctl_get(SYSCTL_REVID) & SYSCTL_REVID_MASK) == 
+	    SYSCTL_MT7621_REV_E)
+		mtk_pcie_phy_mt7621_bypass_pipe_rst(sc, 0x9000);
+
+	/* Setup PCIe ports 0 and 1 */
+	mtk_pcie_phy_mt7621_setup_ssc(sc, 0x9000);
+	/* Setup PCIe port 2 */
+	mtk_pcie_phy_mt7621_setup_ssc(sc, 0xa000);
+
+	/* Deassert resets to PCIe devices */
+	mtk_gpio_clr_set(MT7621_GPIO_DATA0, 0, MT7621_PCIE_RST);
+
+	/* Set number of slots supported */
+	sc->num_slots = 3;
+
+	/* Give it a chance to sink in */
+	DELAY(100000);
+
+	return (0);
+}
+
+static void
+mtk_pcie_phy_mt7628_setup(struct mtk_pci_softc *sc, uint32_t off)
+{
+	uint32_t xtal_sel;
+
+	xtal_sel = mtk_sysctl_get(SYSCTL_SYSCFG) >> 6;
+	xtal_sel &= 0x1;
+
+	mtk_pcie_phy_set(sc, off + 0x400,  8, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x400,  9, 2, 0);
+	mtk_pcie_phy_set(sc, off + 0x000,  4, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x000,  5, 1, 0);
+	mtk_pcie_phy_set(sc, off + 0x4ac, 16, 3, 3);
+
+	if (xtal_sel == 1) {
+		mtk_pcie_phy_set(sc, off + 0x4bc, 24,  8, 0x7d);
+		mtk_pcie_phy_set(sc, off + 0x490, 12,  4, 0x08);
+		mtk_pcie_phy_set(sc, off + 0x490,  6,  2, 0x01);
+		mtk_pcie_phy_set(sc, off + 0x4c0,  0, 32, 0x1f400000);
+		mtk_pcie_phy_set(sc, off + 0x4a4,  0, 16, 0x013d);
+		mtk_pcie_phy_set(sc, off + 0x4a8, 16, 16, 0x74);
+		mtk_pcie_phy_set(sc, off + 0x4a8,  0, 16, 0x74);
+	} else {
+		mtk_pcie_phy_set(sc, off + 0x4bc, 24,  8, 0x64);
+		mtk_pcie_phy_set(sc, off + 0x490, 12,  4, 0x0a);
+		mtk_pcie_phy_set(sc, off + 0x490,  6,  2, 0x00);
+		mtk_pcie_phy_set(sc, off + 0x4c0,  0, 32, 0x19000000);
+		mtk_pcie_phy_set(sc, off + 0x4a4,  0, 16, 0x018d);
+		mtk_pcie_phy_set(sc, off + 0x4a8, 16, 16, 0x4a);
+		mtk_pcie_phy_set(sc, off + 0x4a8,  0, 16, 0x4a);
+	}
+
+	mtk_pcie_phy_set(sc, off + 0x498, 0, 8, 5);
+	mtk_pcie_phy_set(sc, off + 0x000, 5, 1, 1);
+	mtk_pcie_phy_set(sc, off + 0x000, 4, 1, 0);
+}
+
+static int
+mtk_pcie_phy_mt7628_init(device_t dev)
+{
+	struct mtk_pci_softc *sc = device_get_softc(dev);
+
+	/* Set PCIe reset to normal mode */
+	mtk_sysctl_clr_set(SYSCTL_GPIOMODE, MT7628_PERST_GPIO_MODE,
+	    MT7628_PERST);
+
+	/* Start the PHY */
+	if (mtk_pcie_phy_start(dev))
+		return (ENXIO);
+
+	/* Give it a chance to sink in */
+	DELAY(100000);
+
+	/* Setup the PHY */
+	mtk_pcie_phy_mt7628_setup(sc, 0x9000);
+
+	/* Deassert PCIe device reset */
+	MT_CLR_SET32(sc, MTK_PCI_PCICFG, MTK_PCI_RESET, 0);
+
+	/* Set number of slots supported */
+	sc->num_slots = 1;
+
+	return (0);
+}
+
+static int
+mtk_pcie_phy_mt7620_wait_busy(struct mtk_pci_softc *sc)
+{
+	uint32_t reg_value, retry;
+
+	reg_value = retry = 0;
+
+	while (retry++ < MT7620_MAX_RETRIES) {
+		reg_value = MT_READ32(sc, MT7620_PCIE_PHY_CFG);
+		if (reg_value & PHY_BUSY)
+			DELAY(100000);
+		else
+			break;
+	}
+
+	if (retry >= MT7620_MAX_RETRIES)
+		return (ENXIO);
+
+	return (0);
+}
+
+static int
+mtk_pcie_phy_mt7620_set(struct mtk_pci_softc *sc, uint32_t reg,
+    uint32_t val)
+{
+	uint32_t reg_val;
+
+	if (mtk_pcie_phy_mt7620_wait_busy(sc))
+		return (ENXIO);
+
+	reg_val = PHY_MODE_WRITE | ((reg & 0xff) << PHY_ADDR_OFFSET) |
+	    (val & 0xff);
+	MT_WRITE32(sc, MT7620_PCIE_PHY_CFG, reg_val);
+	DELAY(1000);
+
+	if (mtk_pcie_phy_mt7620_wait_busy(sc))
+		return (ENXIO);
+
+	return (0);
+}
+
+static int
+mtk_pcie_phy_mt7620_init(device_t dev)
+{
+	struct mtk_pci_softc *sc = device_get_softc(dev);
+
+	/*
+	 * The below sets the PCIe PHY to bypass the PCIe DLL and enables
+	 * "elastic buffer control", whatever that may be...
+	 */
+	if (mtk_pcie_phy_mt7620_set(sc, 0x00, 0x80) ||
+	    mtk_pcie_phy_mt7620_set(sc, 0x01, 0x04) ||
+	    mtk_pcie_phy_mt7620_set(sc, 0x68, 0x84))
+		return (ENXIO);
+
+	/* Stop PCIe */
+	if (mtk_pcie_phy_stop(dev))
+		return (ENXIO);
+
+	/* Restore PPLL to a sane state before going on */
+	mtk_sysctl_clr_set(MT7620_PPLL_DRV, LC_CKDRVPD, PDRV_SW_SET);
+
+	/* No PCIe on the MT7620N */
+	if (!(mtk_sysctl_get(SYSCTL_REVID) & MT7620_PKG_BGA)) {
+		device_printf(dev, "PCIe disabled for MT7620N\n");
+		mtk_sysctl_clr_set(MT7620_PPLL_CFG0, 0, PPLL_SW_SET);
+		mtk_sysctl_clr_set(MT7620_PPLL_CFG1, 0, PPLL_PD);
+		return (ENXIO);
+	}
+
+	/* PCIe device reset pin is in normal mode */
+	mtk_sysctl_clr_set(SYSCTL_GPIOMODE, MT7620_PERST_GPIO_MODE,
+	    MT7620_PERST);
+
+	/* Enable PCIe now */
+	if (mtk_pcie_phy_start(dev))
+		return (ENXIO);
+
+	/* Give it a chance to sink in */
+	DELAY(100000);
+
+	/* If PLL is not locked - bail */
+	if (!(mtk_sysctl_get(MT7620_PPLL_CFG1) & PPLL_LOCKED)) {
+		device_printf(dev, "no PPLL not lock\n");
+		mtk_pcie_phy_stop(dev);
+		return (ENXIO);
+	}
+
+	/* Configure PCIe PLL */
+	mtk_sysctl_clr_set(MT7620_PPLL_DRV, LC_CKDRVOHZ | LC_CKDRVHZ,
+	    LC_CKDRVPD | PDRV_SW_SET);
+
+	/* and give it a chance to settle */
+	DELAY(100000);
+
+	/* Deassert PCIe device reset */
+	MT_CLR_SET32(sc, MTK_PCI_PCICFG, MTK_PCI_RESET, 0);
+
+	/* MT7620 supports one PCIe slot */
+	sc->num_slots = 1;
+
+	return (0);
+}
+
+static int
+mtk_pcie_phy_rt3883_init(device_t dev)
+{
+	struct mtk_pci_softc *sc = device_get_softc(dev);
+
+	/* Enable PCI host mode and PCIe RC mode */
+	mtk_sysctl_clr_set(SYSCTL_SYSCFG1, 0, RT3883_PCI_HOST_MODE |
+	    RT3883_PCIE_RC_MODE);
+
+	/* Enable PCIe PHY */
+	if (mtk_pcie_phy_start(dev))
+		return (ENXIO);
+
+	/* Disable PCI, we only support PCIe for now */
+	mtk_sysctl_clr_set(SYSCTL_RSTCTRL, 0, RT3883_PCI_RST);
+	mtk_sysctl_clr_set(SYSCTL_CLKCFG1, RT3883_PCI_CLK, 0);
+
+	/* Give things a chance to sink in */
+	DELAY(500000);
+
+	/* Set PCIe port number to 0 and lift PCIe reset */
+	MT_WRITE32(sc, MTK_PCI_PCICFG, 0);
+
+	/* Configure PCI Arbiter */
+	MT_WRITE32(sc, MTK_PCI_ARBCTL, 0x79);
+
+	/* We have a single PCIe slot */
+	sc->num_slots = 1;
+
+	return (0);
+}
+
+static int
+mtk_pcie_phy_rt6856_init(device_t dev)
+{
+	struct mtk_pci_softc *sc = device_get_softc(dev);
+	uint32_t val;
+
+	/* Start the PHY */
+	if (mtk_pcie_phy_start(dev))
+		return (ENXIO);
+
+	/* Give things a chance to sink in */
+	DELAY(100000);
+
+	/* Lift PCIe reset */
+	MT_CLR_SET32(sc, MTK_PCI_PCICFG, MTK_PCI_RESET, 0);
+
+	/*
+	 * Try to determine the actual chip type and hence the number of slots.
+	 * Given the lack of documentation, this is a little bit of a
+	 * hit or miss...
+	 */
+	val = (mtk_sysctl_get(RT6856_DETECT_REG) >> RT6856_SHIFT) & RT6856_MASK;
+	if (val == RT6856_IS_RT6855) {
+		sc->num_slots = 1;
+	} else if (val == RT6856_IS_RT6856) {
+		sc->num_slots = 2;
+	} else {
+		device_printf(dev, "unknown device, setting num slots to 1\n");
+		sc->num_slots = 1;
+	}
+
+	return (0);
+}
+
+static void
+mtk_pcie_phy_setup_slots(device_t dev)
+{
+	struct mtk_pci_softc *sc = device_get_softc(dev);
+	uint32_t bar0_val;
+	int i;
+
+	/* Disable all PCIe interrupts */
+	MT_WRITE32(sc, MTK_PCI_PCIENA, 0);
+
+	/* Default bar0_val is 64M, enabled */
+	bar0_val = 0x03FF0001;
+
+	/* But we override it to 2G, enabled for some chips */
+	if (sc->chipid == MTK_CHIP_MT7620 || sc->chipid == MTK_CHIP_MT7628 ||
+	    sc->chipid == MTK_CHIP_MT7688 || sc->chipid == MTK_CHIP_MT7621)
+		bar0_val = 0x7FFF0001;
+
+	/* We still don't know which slots have linked up */
+	sc->pcie_link_status = 0;
+
+	/* XXX: I am not sure if this delay is really necessary */
+	DELAY(500000);
+
+	/*
+	 * See which slots have links and mark them.
+	 * Set up all slots' BARs and make them look like PCIe bridges.
+	 */
+	for (i = 0; i < sc->num_slots; i++) {
+		/* If slot has link - mark it */
+		if (MT_READ32(sc, MTK_PCIE_STATUS(i)) & 1)
+			sc->pcie_link_status |= (1<<i);
+
+		/* Generic slot configuration follows */
+
+		/* We enable BAR0 */
+		MT_WRITE32(sc, MTK_PCIE_BAR0SETUP(i), bar0_val);
+		/* and disable BAR1 */
+		MT_WRITE32(sc, MTK_PCIE_BAR1SETUP(i), 0);
+		/* Internal memory base has no offset */
+		MT_WRITE32(sc, MTK_PCIE_IMBASEBAR0(i), 0);
+		/* We're a PCIe bridge */
+		MT_WRITE32(sc, MTK_PCIE_CLASS(i), 0x06040001);
+	}
 }
