@@ -38,7 +38,7 @@
 struct mtk_pci_softc {
 	device_t		sc_dev;
 
-	struct resource *	pci_res[4];
+	struct resource *	pci_res[MTK_PCI_NIRQS + 1];
 	void *			pci_intrhand[MTK_PCI_NIRQS];
 
 	int			sc_busno;
@@ -71,7 +71,7 @@ struct mtk_pci_softc {
 };
 
 #define MTK_PCI_PCICFG			0x0000
-#define    MTK_PCI_RESET		(1<<1)
+#define    MTK_PCI_RESET			(1<<1)
 #define MTK_PCI_PCIINT			0x0008
 #define MTK_PCI_PCIENA			0x000C
 #define MTK_PCI_CFGADDR			0x0020
@@ -108,31 +108,31 @@ struct mtk_pci_softc {
 /* Chip specific defines */
 #define MT7620_MAX_RETRIES	10
 #define MT7620_PCIE_PHY_CFG	0x90
-#define    PHY_BUSY		(1<<31)
-#define    PHY_MODE_WRITE	(1<<23)
-#define    PHY_ADDR_OFFSET	8
+#define    PHY_BUSY			(1<<31)
+#define    PHY_MODE_WRITE		(1<<23)
+#define    PHY_ADDR_OFFSET		8
 #define MT7620_PPLL_CFG0	0x98
-#define    PPLL_SW_SET		(1<<31)
+#define    PPLL_SW_SET			(1<<31)
 #define MT7620_PPLL_CFG1	0x9c
-#define    PPLL_PD		(1<<26)
-#define    PPLL_LOCKED		(1<<23)
+#define    PPLL_PD			(1<<26)
+#define    PPLL_LOCKED			(1<<23)
 #define MT7620_PPLL_DRV		0xa0
-#define   PDRV_SW_SET		(1<<31)
-#define   LC_CKDRVPD		(1<<19)
-#define   LC_CKDRVOHZ		(1<<18)
-#define   LC_CKDRVHZ		(1<<17)
+#define   PDRV_SW_SET			(1<<31)
+#define   LC_CKDRVPD			(1<<19)
+#define   LC_CKDRVOHZ			(1<<18)
+#define   LC_CKDRVHZ			(1<<17)
 #define MT7620_PERST_GPIO_MODE	(3<<16)
-#define   MT7620_PERST		(0<<16)
-#define   MT7620_GPIO		(2<<16)
+#define   MT7620_PERST			(0<<16)
+#define   MT7620_GPIO			(2<<16)
 #define MT7620_PKG_BGA		(1<<16)
 
 #define MT7628_PERST_GPIO_MODE	(1<<16)
-#define   MT7628_PERST		(0<<16)
+#define   MT7628_PERST			(0<<16)
 
 #define MT7621_PERST_GPIO_MODE	(3<<10)
-#define   MT7621_PERST_GPIO	(1<<10)
+#define   MT7621_PERST_GPIO		(1<<10)
 #define MT7621_UARTL3_GPIO_MODE	(3<<3)
-#define   MT7621_UARTL3_GPIO	(1<<3)
+#define   MT7621_UARTL3_GPIO		(1<<3)
 #define MT7621_PCIE0_RST	(1<<19)
 #define MT7621_PCIE1_RST	(1<<8)
 #define MT7621_PCIE2_RST	(1<<7)
@@ -145,10 +145,10 @@ struct mtk_pci_softc {
 #define RT3883_PCIE_RC_MODE	(1<<8)
 
 #define RT6856_DETECT_REG	0x8c
-#define   RT6856_SHIFT		0x08
-#define   RT6856_MASK		0x07
-#define   RT6856_IS_RT6855	0x04
-#define   RT6856_IS_RT6856	0x06
+#define   RT6856_SHIFT			0x08
+#define   RT6856_MASK			0x07
+#define   RT6856_IS_RT6855		0x04
+#define   RT6856_IS_RT6856		0x06
 /* End of chip specific defines */
 
 #define MT_WRITE32(sc, off, val) \
