@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2015 Stanislav Galabov.
+ * Copyright (c) 2016 Stanislav Galabov.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

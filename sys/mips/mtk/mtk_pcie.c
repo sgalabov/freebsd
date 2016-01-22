@@ -1133,10 +1133,10 @@ mtk_pcie_phy_stop(device_t dev)
 	return (0);
 }
 
-#define mtk_pcie_phy_set(_sc, _reg, _start, _num, _val)		\
-    MT_CLR_SET32((_sc), (_reg), (_num) == 32 ? 0xffffffff :	\
-		     (((1u << (_num)) - 1) << (_start)),	\
-		     ((_val) << (_start)))
+#define mtk_pcie_phy_set(_sc, _reg, _s, _n, _v)			\
+	MT_WRITE32((_sc), (_reg), ((MT_READ32((_sc), (_reg)) &	\
+	    (~(((1ull << (_n)) - 1) << (_s)))) | ((_v) << (_s))))
+
 static void
 mtk_pcie_phy_mt7621_bypass_pipe_rst(struct mtk_pci_softc *sc, uint32_t off)
 {
@@ -1243,6 +1243,9 @@ mtk_pcie_phy_mt7621_init(device_t dev)
 	/* Now start the PHY again */
 	if (mtk_pcie_phy_start(dev))
 		return (ENXIO);
+
+	/* Wait for things to settle */
+	DELAY(100000);
 
 	/* Only apply below to REV-E hardware */
 	if ((mtk_sysctl_get(SYSCTL_REVID) & SYSCTL_REVID_MASK) == 
@@ -1505,7 +1508,7 @@ static void
 mtk_pcie_phy_setup_slots(device_t dev)
 {
 	struct mtk_pci_softc *sc = device_get_softc(dev);
-	uint32_t bar0_val;
+	uint32_t bar0_val, val;
 	int i;
 
 	/* Disable all PCIe interrupts */
@@ -1544,5 +1547,12 @@ mtk_pcie_phy_setup_slots(device_t dev)
 		MT_WRITE32(sc, MTK_PCIE_IMBASEBAR0(i), 0);
 		/* We're a PCIe bridge */
 		MT_WRITE32(sc, MTK_PCIE_CLASS(i), 0x06040001);
+
+		val = mtk_pci_read_config(dev, 0, i, 0, 0x4, 4);
+		mtk_pci_write_config(dev, 0, i, 0, 0x4, val | 0x4, 4);
+		val = mtk_pci_read_config(dev, 0, i, 0, 0x70c, 4);
+		val &= ~(0xff << 8);
+		val |= (0x50 << 8);
+		mtk_pci_write_config(dev, 0, i, 0, 0x4, val, 4);
 	}
 }
