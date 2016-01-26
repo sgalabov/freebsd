@@ -94,30 +94,87 @@ platform_cpu_init()
 static void
 mips_init(void)
 {
-	int i;
+	struct mem_region mr[FDT_MEM_REGIONS];
+	int i, j, mr_cnt, val;
 	char *memsize;
 
 	printf("entry: mips_init()\n");
 
-	if ((memsize = kern_getenv("memsize")) != NULL)
-		realmem = btoc(strtol(memsize, NULL, 0) << 20);
-	else
-		realmem = btoc(32 << 20);
-
-	if (ctob(realmem) > (448 << 20))
-		realmem = btoc(448 << 20);
-
 	bootverbose = 1;
 
-	for (i = 0; i < 10; i++) {
+	for (i = 0; i < 10; i++)
 		phys_avail[i] = 0;
-	}
 
-	/* phys_avail regions are in bytes */
 	dump_avail[0] = phys_avail[0] = MIPS_KSEG0_TO_PHYS(kernel_kseg0_end);
-	dump_avail[1] = phys_avail[1] = ctob(realmem);
 
-	physmem = realmem;
+	/*
+	 * The most low memory MT7621 can have. Currently MT7621 is the chip
+	 * that supports the most memory, so that seems reasonable.
+	 */
+	realmem = btoc(448 * 1024 * 1024);
+
+	if (fdt_get_mem_regions(mr, &mr_cnt, &val) == 0) {
+		physmem = btoc(val);
+
+		printf("RAM size: %ldMB (from FDT)\n",
+		    ctob(physmem) / (1024 * 1024));
+
+		KASSERT((phys_avail[0] >= mr[0].mr_start) && \
+			(phys_avail[0] < (mr[0].mr_start + mr[0].mr_size)),
+			("First region is not within FDT memory range"));
+
+		/* Limit size of the first region */
+		phys_avail[1] = (mr[0].mr_start +
+		    MIN(mr[0].mr_size, ctob(realmem)));
+		dump_avail[1] = phys_avail[1];
+
+		/* Add the rest of the regions */
+		for (i = 1, j = 2; i < mr_cnt; i++, j+=2) {
+			phys_avail[j] = mr[i].mr_start;
+			phys_avail[j+1] = (mr[i].mr_start + mr[i].mr_size);
+			dump_avail[j] = phys_avail[j];
+			dump_avail[j+1] = phys_avail[j+1];
+		}
+	} else {
+		if ((memsize = kern_getenv("memsize")) != NULL) {
+			physmem = btoc(strtol(memsize, NULL, 0) << 20);
+			printf("RAM size: %ldMB (from memsize)\n",
+			    ctob(physmem) / (1024 * 1024));
+		} else { /* All else failed, assume 32MB */
+			physmem = btoc(32 * 1024 * 1024);
+			printf("RAM size: %ldMB (assumed)\n",
+			    ctob(physmem) / (1024 * 1024));
+		}
+
+		if (ctob(physmem) < (448 * 1024 * 1024)) {
+			/*
+			 * Anything up to 448MB is assumed to be directly
+			 * mappable as low memory...
+			 */
+			dump_avail[1] = phys_avail[1] = ctob(physmem);
+		} else if (mtk_chip_get_chipid() == MTK_CHIP_MT7621) {
+			/*
+			 * On MT7621 the low memory is limited to 448MB, the
+			 * rest is high memory, mapped at 0x20000000
+			 */
+			phys_avail[1] = 448 * 1024 * 1024;
+			phys_avail[2] = 0x20000000;
+			phys_avail[3] = phys_avail[2] + ctob(physmem) -
+			    phys_avail[1];
+			dump_avail[1] = phys_avail[1] - phys_avail[0];
+			dump_avail[2] = phys_avail[2];
+			dump_avail[3] = phys_avail[3] - phys_avail[2];
+		} else {
+			/*
+			 * We have > 448MB RAM and we're not MT7621? Currently
+			 * there is no such chip, so we'll just limit the RAM to
+			 * 32MB and let the user know...
+			 */
+			printf("Unknown chip, assuming 32MB RAM\n");
+			physmem = btoc(32 * 1024 * 1024);
+			dump_avail[1] = phys_avail[1] = ctob(physmem);
+		}
+	}
 
 	init_param1();
 	init_param2(physmem);
@@ -136,11 +193,7 @@ void
 platform_reset(void)
 {
 
-#if 1
 	mtk_chip_reset();
-#else
-	*((volatile uint32_t *)0xbe000034) = 1;
-#endif
 }
 
 void
