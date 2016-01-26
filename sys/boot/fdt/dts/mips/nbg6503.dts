@@ -10,9 +10,9 @@
 	model = "NBG6503";
 
 	memory {
-		/* 64MB RAM */
+		/* 128MB RAM */
 	       	device_type = "memory";
-		reg = < 0x80000000 0x4000000 >;
+		reg = < 0x0 0x8000000 >;
 	};
 
 	soc {
