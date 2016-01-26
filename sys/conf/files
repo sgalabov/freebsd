@@ -2347,6 +2347,9 @@ dev/random/hash.c		optional random random_yarrow | \
 dev/rc/rc.c			optional rc
 dev/rccgpio/rccgpio.c		optional rccgpio gpio
 dev/re/if_re.c			optional re
+dev/reset/reset.c		optional ext_resources reset
+dev/reset/rstdev_if.m		optional ext_resources reset
+dev/reset/rstnode_if.m		optional ext_resources reset
 dev/rl/if_rl.c			optional rl pci
 dev/rndtest/rndtest.c		optional rndtest
 dev/rp/rp.c			optional rp
