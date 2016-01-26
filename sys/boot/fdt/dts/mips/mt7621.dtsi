@@ -138,9 +138,17 @@
 
 		usbphy {
 			compatible = "mtk,usb-phy";
-			reg;
+			reg = <0x1e1d0000 0x2000>;
 			status = "okay";
                 };
+
+		xhci {
+			compatible = "mtk,usb-xhci";
+			reg = <0x1e1c0000 0x10000>;
+			interrupts = <22>;
+			interrupt-parent = <&intc>;
+			status = "okay";
+		};
 
 		pcie {
                     compatible = "mtk,mtk-pci";

@@ -5,11 +5,15 @@
 / {
 	#address-cells = <1>;
 	#size-cells = <1>;
-	compatible = "mtk,rt3050-soc";
+	compatible = "mtk,rt3352-soc";
 
 	cpus {
-		cpu@0 {
-			compatible = "mips,mips24KEc";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "mti,mips24kc";
+			reg = <0>;
 		};
 	};
 
@@ -50,7 +54,7 @@
 			status = "okay";
 		    };
 
-		    sysc {
+		    sysc: sysc {
 			compatible="mtk,mtk-sysc", "ralink,rt305x-sysc";
 			reg = <0x0 0x100>;
 		    };
@@ -72,32 +76,39 @@
 			device_type = "serial";
 			compatible = "mtk,mtk-uart";
 			reg = <0xc00 0x100>;
-			/*clock-frequency = <320000000>;
-			current-speed = <57600>; */
+			/*clock-frequency = <120000000>;
+			current-speed = <57600>;*/
 			reg-shift = <2>;
 			interrupts = <12>;
 			interrupt-parent = <&intc>;
 		    };
 	        };
-
+	
 		usbphy {
 			compatible = "mtk,usb-phy";
-			clocks = <&sysc 18>;
-			resets = <&sysc 22>;
+			clocks = <&sysc 18>, <&sysc 20>;
+			resets = <&sysc 22>, <&sysc 25>;
 			status = "okay";
                 };
 
-		dotg {
-			compatible = "mtk,mtk-dotg";
-			reg = <0x101C0000 0x40000>;
+		ehci {
+			compatible = "usb-ehci";
+			reg = <0x101C0000 0x1000>;
 			interrupts = <18>;
 			interrupt-parent = <&intc>;
-			dr_mode = "host";
+			status = "disabled";
+		};
+
+		ohci {
+			compatible = "usb-ohci";
+			reg = <0x101C1000 0x1000>;
+			interrupts = <18>;
+			interrupt-parent = <&intc>;
 			status = "disabled";
 		};
 
 	        rt {
-			compatible = "mtk,rt305x-eth";
+			compatible = "mtk,rt3052-eth";
 			reg = <0x10100000 0x10000>;
 			status = "okay";
 			interrupts = <5>;
@@ -105,18 +116,12 @@
 	        };
 
 	        ral {
-			compatible = "ralink,rt305x-wmac";
+			compatible = "ralink,rt5350-wmac";
 			reg = <0x10180000 0x40000>;
 			status = "okay";
 			interrupts = <6>;
 			interrupt-parent = <&cpuintc>;
 	        };
-	};
-
-	flash {
-		compatible = "cfi-flash";
-		reg = <0x1F000000 0x01000000>;
-		status = "disabled";
 	};
 };
 

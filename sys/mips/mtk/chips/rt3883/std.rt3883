@@ -1,7 +1,7 @@
 # $FreeBSD$
 
 ident		RT3883
-cpu		CPU_MIPS74KC
+cpu		CPU_MIPS74K
 include		"../mtk/std.mtk"
 files		"../mtk/chips/rt3883/files.rt3883"
 

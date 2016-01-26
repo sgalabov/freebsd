@@ -33,6 +33,8 @@ __FBSDID("$FreeBSD$");
 #include <sys/bus.h>
 #include <sys/module.h>
 
+#include <machine/bus.h>
+
 #include <dev/fdt/fdt_common.h>
 #include <dev/fdt/fdt_clock.h>
 #include <dev/fdt/fdt_reset.h>
@@ -40,13 +42,38 @@ __FBSDID("$FreeBSD$");
 #include <dev/ofw/ofw_bus_subr.h>
 
 #include <mips/mtk/mtk_sysctlreg.h>
+#include <mips/mtk/mtk_usb_phyreg.h>
 
 #define RESET_ASSERT_DELAY	1000
 #define RESET_DEASSERT_DELAY	10000
 
 struct mtk_usb_phy_softc {
-	/* Empty for now */
+	struct resource *	res;
+	uint32_t		fm_base;
+	uint32_t		u2_base;
+	uint32_t		sr_coef;
 };
+
+#define USB_PHY_READ(_sc, _off)		bus_read_4((_sc)->res, (_off))
+#define USB_PHY_WRITE(_sc, _off, _val)	bus_write_4((_sc)->res, (_off), (_val))
+#define USB_PHY_CLR_SET(_sc, _off, _clr, _set)	\
+	USB_PHY_WRITE(_sc, _off, ((USB_PHY_READ(_sc, _off) & ~(_clr)) | (_set)))
+
+#define USB_PHY_READ_U2(_sc, _off)			\
+	USB_PHY_READ((_sc), ((_sc)->u2_base + (_off)))
+#define USB_PHY_WRITE_U2(_sc, _off, _val)		\
+	USB_PHY_WRITE((_sc), ((_sc)->u2_base + (_off)), (_val))
+#define USB_PHY_CLR_SET_U2(_sc, _off, _clr, _set)	\
+	USB_PHY_WRITE_U2((_sc), (_off), ((USB_PHY_READ_U2((_sc), (_off)) & \
+	    ~(_clr)) | (_set)))
+
+#define USB_PHY_READ_FM(_sc, _off)			\
+	USB_PHY_READ((_sc), ((_sc)->fm_base + (_off)))
+#define USB_PHY_WRITE_FM(_sc, _off)			\
+	USB_PHY_WRITE((_sc), ((_sc)->fm_base + (_off)), (_val))
+#define USB_PHY_CLR_SET_FM(_sc, _off, _clr, _set)	\
+	USB_PHY_WRITE_U2((_sc), (_off), ((USB_PHY_READ_U2((_sc), (_off)) & \
+	    ~(_clr)) | (_set)))
 
 static void mtk_usb_phy_mt7621_init(device_t);
 static void mtk_usb_phy_mt7628_init(device_t);
@@ -68,19 +95,22 @@ mtk_usb_phy_probe(device_t dev)
 static int
 mtk_usb_phy_attach(device_t dev)
 {
+	struct mtk_usb_phy_softc * sc = device_get_softc(dev);
 	phandle_t node;
 	uint32_t chipid, val;
+	int rid;
 
-	/* Get our FDT node */
+	/* Get our FDT node and chip id */
 	node = ofw_bus_get_node(dev);
 	chipid = mtk_chip_get_chipid();
 
 	/* Now let's see about setting USB to host or device mode */
+	/* XXX: is it the same for all chips? */
 	val = mtk_sysctl_get(SYSCTL_SYSCFG1);
-	if (OF_hasprop(node, "mtk,usb-host"))
-		val |= SYSCFG1_USB_HOST_MODE;
-	else
+	if (OF_hasprop(node, "mtk,usb-device"))
 		val &= ~SYSCFG1_USB_HOST_MODE;
+	else
+		val |= SYSCFG1_USB_HOST_MODE;
 	mtk_sysctl_set(SYSCTL_SYSCFG1, val);
 
 	/* If we have clocks defined - enable them */
@@ -95,16 +125,43 @@ mtk_usb_phy_attach(device_t dev)
 		DELAY(RESET_DEASSERT_DELAY);
 	}
 
+	/* Careful, some devices actually require resources */
+	if (OF_hasprop(node, "reg")) {
+		rid = 0;
+		sc->res = bus_alloc_resource_any(dev, SYS_RES_MEMORY, &rid,
+		    RF_ACTIVE);
+		if (sc->res == NULL) {
+			device_printf(dev, "could not map memory\n");
+			return (ENXIO);
+		}
+	} else {
+		sc->res = NULL;
+	}
+
 	/* Some chips require specific USB PHY init... handle these */
 	switch (chipid) {
 	case MTK_CHIP_MT7628: /* Fallthrough */
 	case MTK_CHIP_MT7688:
+		if (sc->res == NULL)
+			return (ENXIO);
+		sc->fm_base = MT7628_FM_FEG_BASE;
+		sc->u2_base = MT7628_U2_BASE;
+		sc->sr_coef = MT7628_SR_COEF;
 		mtk_usb_phy_mt7628_init(dev);
 		break;
 	case MTK_CHIP_MT7621:
+		if (sc->res == NULL)
+			return (ENXIO);
+		sc->fm_base = MT7621_FM_FEG_BASE;
+		sc->u2_base = MT7621_U2_BASE;
+		sc->sr_coef = MT7621_SR_COEF;
 		mtk_usb_phy_mt7621_init(dev);
 		break;
 	}
+
+	/* We no longer need the resources, release them */
+	if (sc->res != NULL)
+		bus_release_resource(dev, SYS_RES_MEMORY, 0, sc->res);
 
 	return (0);
 }
@@ -112,6 +169,7 @@ mtk_usb_phy_attach(device_t dev)
 static int
 mtk_usb_phy_detach(device_t dev)
 {
+	struct mtk_usb_phy_softc *sc = device_get_softc(dev);
 	phandle_t node;
 
 	/* Get our FDT node */
@@ -125,21 +183,78 @@ mtk_usb_phy_detach(device_t dev)
 	if (OF_hasprop(node, "clocks"))
 		fdt_clock_disable_all(dev);
 
+	/* Finally, release resources, if any were allocated */
+	if (sc->res != NULL)
+		bus_release_resource(dev, SYS_RES_MEMORY, 0, sc->res);
+
 	return (0);
+}
+
+static void
+mtk_usb_phy_slew_rate_calibration(struct mtk_usb_phy_softc *sc)
+{
+	uint32_t val;
+	int i, res;
+
+	USB_PHY_CLR_SET_U2(sc, U2_PHY_ACR0, 0, SRCAL_EN);
+	DELAY(1000);
+
+	USB_PHY_CLR_SET_FM(sc, U2_PHY_FMMONR1, 0, FRCK_EN);
+	USB_PHY_CLR_SET_FM(sc, U2_PHY_FMCR0, CYCLECNT, 0x400);
+	USB_PHY_CLR_SET_FM(sc, U2_PHY_FMCR0, 0, FDET_EN);
+
+	res = 1;
+	for (i = 0; i < 10; i++) {
+		if ((val = USB_PHY_READ_FM(sc, U2_PHY_FMMONR0)) != 0) {
+			res = 0;
+			break;
+		}
+		DELAY(1000);
+	}
+
+	USB_PHY_CLR_SET_FM(sc, U2_PHY_FMCR0, FDET_EN, 0);
+	USB_PHY_CLR_SET_FM(sc, U2_PHY_FMMONR1, FRCK_EN, 0);
+	USB_PHY_CLR_SET_U2(sc, U2_PHY_ACR0, SRCAL_EN, 0);
+	DELAY(1000);
+
+	if (res == 1) {
+		USB_PHY_CLR_SET_U2(sc, U2_PHY_ACR0, SRCTRL, 0x4 << SRCTRL_OFF);
+	} else {
+		val = ((((1024 * 25 * sc->sr_coef) / val) + 500) / 1000) &
+		    SRCTRL_MSK;
+		USB_PHY_CLR_SET_U2(sc, U2_PHY_ACR0, SRCTRL, val << SRCTRL_OFF);
+	}
 }
 
 static void
 mtk_usb_phy_mt7621_init(device_t dev)
 {
+	struct mtk_usb_phy_softc *sc = device_get_softc(dev);
 
-	device_printf(dev, "PHY Init not implemented yet\n");
+	/* Slew rate calibration only, but for 2 ports */
+	mtk_usb_phy_slew_rate_calibration(sc);
+
+	sc->u2_base = MT7621_U2_BASE_P1;
+	mtk_usb_phy_slew_rate_calibration(sc);
 }
 
 static void
 mtk_usb_phy_mt7628_init(device_t dev)
 {
+	struct mtk_usb_phy_softc *sc = device_get_softc(dev);
 
-	device_printf(dev, "PHY Init not implemented yet\n");
+	/* XXX: possibly add barriers between the next writes? */
+	USB_PHY_WRITE_U2(sc, U2_PHY_DCR0, 0x00ffff02);
+	USB_PHY_WRITE_U2(sc, U2_PHY_DCR0, 0x00555502);
+	USB_PHY_WRITE_U2(sc, U2_PHY_DCR0, 0x00aaaa02);
+	USB_PHY_WRITE_U2(sc, U2_PHY_DCR0, 0x00000402);
+	USB_PHY_WRITE_U2(sc,  U2_PHY_AC0, 0x0048086a);
+	USB_PHY_WRITE_U2(sc,  U2_PHY_AC1, 0x4400001c);
+	USB_PHY_WRITE_U2(sc, U2_PHY_ACR3, 0xc0200000);
+	USB_PHY_WRITE_U2(sc, U2_PHY_DTM0, 0x02000000);
+
+	/* Slew rate calibration */
+	mtk_usb_phy_slew_rate_calibration(sc);
 }
 
 static device_method_t mtk_usb_phy_methods[] = {

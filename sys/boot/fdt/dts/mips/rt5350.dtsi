@@ -86,7 +86,6 @@
 	
 		usbphy {
 			compatible = "mtk,usb-phy";
-			reg;
 			clocks = <&sysc 18>;
 			resets = <&sysc 22>, <&sysc 25>;
 			status = "okay";

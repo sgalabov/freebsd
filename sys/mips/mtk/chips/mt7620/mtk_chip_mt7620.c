@@ -170,7 +170,7 @@ int
 mtk_chip_pci_init(device_t dev)
 {
 	struct mtk_pci_softc *sc = device_get_softc(dev);
-	uint32_t tmp;
+//	uint32_t tmp;
 
 #if 0
 	mtk_sysctl_set(SYSCTL_SYSCFG1,
@@ -201,15 +201,17 @@ mtk_chip_pci_init(device_t dev)
 	MT_WRITE32(sc, MTK_PCI_PCICFG, MT_READ32(sc, 0) | (1<<1));
 	DELAY(500000);
 #endif
+#if 0
 	// Lift reset
 	MT_WRITE32(sc, MTK_PCI_PCICFG, MT_READ32(sc, 0) & ~(1<<1));
 	DELAY(500000);
-
+#endif
 	if ((MT_READ32(sc, MTK_PCI_PCIE0_STATUS) & 0x1) == 1)
 		sc->pcie_link_status = 1;
 	else
 		sc->pcie_link_status = 0;
 
+#if 0
 	// The code below should probably go into the main pci driver
 	MT_WRITE32(sc, MTK_PCI_MEMBASE, sc->sc_mem_base);
 	MT_WRITE32(sc, MTK_PCI_IOBASE, sc->sc_io_base);
@@ -228,6 +230,6 @@ mtk_chip_pci_init(device_t dev)
 	tmp = mtk_pci_read_config(dev, 0, 0, 0, 0x70c, 4);
 
 	mtk_pci_write_config(dev, 0, 0, 0, PCIR_BAR(0), 0, 4);
-
+#endif
 	return (0);
 }
