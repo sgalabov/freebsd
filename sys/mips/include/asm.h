@@ -699,10 +699,7 @@ _C_LABEL(x):
 #elif defined(CPU_RMI)
 #define	HAZARD_DELAY
 #define	ITLBNOPFIX
-#elif defined(CPU_MIPS24K) || defined(CPU_MIPS24KE) ||		\
-      defined(CPU_MIPS34K) || defined(CPU_MIPS74K)  ||		\
-      defined(CPU_MIPS1004K) || defined(CPU_MIPS1074K) ||	\
-      defined(CPU_INTERAPTIV) || defined(CPU_PROAPTIV)
+#elif defined(CPU_MIPS74K)
 #define	HAZARD_DELAY	sll $0,$0,3
 #define	ITLBNOPFIX	sll $0,$0,3
 #else
