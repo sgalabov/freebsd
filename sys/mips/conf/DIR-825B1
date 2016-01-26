@@ -66,7 +66,6 @@ options 	AR71XX_ENV_UBOOT
 # options 	MSDOSFS			# Read MSDOS filesystems; useful for USB/CF
 
 # options 	MD_ROOT
-# options 	MD_ROOT_SIZE="6144"
 
 options 	AR71XX_ATH_EEPROM	# Fetch EEPROM/PCI config from flash
 options 	ATH_EEPROM_FIRMWARE	# Use EEPROM from flash

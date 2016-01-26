@@ -91,7 +91,6 @@ device		gpioled
 # The following enables MFS as root, this seems similar to an initramfs or initrd
 # as used in Linux.
 #options 	MD_ROOT
-#options 	MD_ROOT_SIZE=7560
 
 
 

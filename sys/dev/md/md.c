@@ -128,27 +128,11 @@ SYSCTL_INT(_vm, OID_AUTO, md_malloc_wait, CTLFLAG_RW, &md_malloc_wait, 0,
 /*
  * Preloaded image gets put here.
  */
-#if defined(MD_ROOT_SIZE)
-/*
- * Applications that patch the object with the image can determine
- * the size looking at the start and end markers (strings),
- * so we want them contiguous.
- */
-static struct {
-	u_char start[MD_ROOT_SIZE*1024];
-	u_char end[128];
-} mfs_root = {
-	.start = "MFS Filesystem goes here",
-	.end = "MFS Filesystem had better STOP here",
-};
-const int mfs_root_size = sizeof(mfs_root.start);
-#else
 extern volatile u_char __weak_symbol mfs_root;
 extern volatile u_char __weak_symbol mfs_root_end;
 __GLOBL(mfs_root);
 __GLOBL(mfs_root_end);
 #define mfs_root_size ((uintptr_t)(&mfs_root_end - &mfs_root))
-#endif
 #endif
 
 static g_init_t g_md_init;

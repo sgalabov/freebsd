@@ -51,8 +51,6 @@ options 	BOOTP_COMPAT
 options 	ROOTDEVNAME=\"nfs:10.1.1.8:/usr/extra/nfsroot\"
 #
 #options 	MD_ROOT			# MD is a potential root device
-#options 	MD_ROOT_SIZE=27000
-#options 	MD_ROOT_SIZE=5120
 #options 	ROOTDEVNAME=\"ufs:md0\"
 options 	_KPOSIX_PRIORITY_SCHEDULING # POSIX P1003_1B real-time extensions
 options 	HZ=1000	
