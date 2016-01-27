@@ -1,7 +1,7 @@
 # $FreeBSD$
 
 ident		RT305X
-cpu		CPU_MIPS24KE
+cpu		CPU_MIPS24K
 include		"../mtk/std.mtk"
 files		"../mtk/chips/rt305x/files.rt305x"
 

@@ -226,10 +226,10 @@
 #define	COP0_SYNC	.word 0xc0	/* ehb */
 #elif defined(CPU_SB1)
 #define COP0_SYNC  ssnop; ssnop; ssnop; ssnop; ssnop; ssnop; ssnop; ssnop; ssnop
-#elif defined(CPU_MIPS24K) || defined(CPU_MIPS24KE) ||		\
-      defined(CPU_MIPS34K) || defined(CPU_MIPS74K)  ||		\
-      defined(CPU_MIPS1004K) || defined(CPU_MIPS1074K) ||	\
-      defined(CPU_INTERAPTIV) || defined(CPU_PROAPTIV)
+#elif defined(CPU_MIPS24K) || defined(CPU_MIPS34K) ||		\
+      defined(CPU_MIPS74K) || defined(CPU_MIPS1004K)  ||	\
+      defined(CPU_MIPS1074K) || defined(CPU_INTERAPTIV) ||	\
+      defined(CPU_PROAPTIV)
 /*
  * According to MIPS32tm Architecture for Programmers, Vol.II, rev. 2.00:
  * "As EHB becomes standard in MIPS implementations, the previous SSNOPs can be

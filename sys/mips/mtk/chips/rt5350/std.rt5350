@@ -1,7 +1,7 @@
 # $FreeBSD$
 
 ident		RT5350
-cpu		CPU_MIPS24KE
+cpu		CPU_MIPS24K
 include		"../mtk/std.mtk"
 files		"../mtk/chips/rt5350/files.rt5350"
 

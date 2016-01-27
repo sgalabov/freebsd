@@ -1,7 +1,7 @@
 # $FreeBSD$
 
 ident		MT7620
-cpu		CPU_MIPS24KE
+cpu		CPU_MIPS24K
 include		"../mtk/std.mtk"
 files		"../mtk/chips/mt7620/files.mt7620"
 
