@@ -1,0 +1,67 @@
+/dts-v1/;
+
+/include/ "mt7620a.dtsi"
+
+/ {
+	compatible = "ralink,mt7620a-soc";
+	model = "TP-Link Archer C20i";
+
+	chosen {
+		bootargs = "-v";
+		stdin = &uartlite;
+		stdout = &uartlite;
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x4000000>;
+	};
+
+	palmbus@10000000 {
+		compatible = "simple-bus";
+
+		spi@b00 {
+			flash {
+				compatible = "st,m25p";
+				spi-chipselect = <0>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				slice@0 {
+					reg = <0x0 0x20000>;
+					label = "u-boot";
+					read-only;
+				};
+
+				slice@20000 {
+					reg = <0x20000 0x7a0000>;
+					label = "firmware";
+				};
+
+				slice@7c0000 {
+					reg = <0x7c0000 0x10000>;
+					label = "config";
+					read-only;
+				};
+
+				rom: slice@7d0000 {
+					reg = <0x7d0000 0x10000>;
+					label = "rom";
+					read-only;
+				};
+
+				slice@7e0000 {
+					reg = <0x7e0000 0x10000>;
+					label = "romfile";
+					read-only;
+				};
+
+				slice@7f0000 {
+					reg = <0x7f0000 0x10000>;
+					label = "radio";
+					read-only;
+				};
+			};
+		};
+	};
+};

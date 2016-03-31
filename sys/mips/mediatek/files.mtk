@@ -1,0 +1,42 @@
+# $FreeBSD$
+
+mips/mediatek/mtk_machdep.c		standard
+mips/mediatek/mtk_sysctl.c		standard
+mips/mediatek/mtk_soc.c			standard
+mips/mediatek/mtk_intr_v1.c		standard
+mips/mediatek/mtk_intr_v2.c		standard
+mips/mediatek/mtk_intr_gic.c		standard
+mips/mediatek/mtk_reset.c		standard
+mips/mediatek/mtk_clock.c		standard
+mips/mediatek/mtk_pinctrl.c		standard
+mips/mediatek/mtk_spi_v1.c		optional spibus
+mips/mediatek/mtk_spi_v2.c		optional spibus
+mips/mediatek/mtk_usb_phy.c		optional usb usbphy
+#mips/mediatek/mtk_xhci.c		optional usb xhci
+mips/mediatek/mtk_ohci.c		optional usb ohci
+mips/mediatek/mtk_ehci.c		optional usb ehci
+mips/mediatek/mtk_dotg.c		optional usb dwcotg
+#mips/mediatek/mtk_pcie.c		optional pci
+mips/mediatek/mtk_gpio_v1.c		optional gpio
+mips/mediatek/mtk_gpio_v2.c		optional gpio
+mips/mediatek/if_rt.c			optional rt
+#mips/mediatek/mtk_mmc.c		optional mmc
+mips/mediatek/uart_dev_mtk.c		standard
+mips/mediatek/uart_dev_mtk_ns8250.c	standard
+
+# Hack to reuse ARM intrng code
+kern/subr_intr.c			standard
+kern/pic_if.m				standard
+
+# Intrng compatible MIPS32 interrupt controller
+mips/mips/mips_pic.c			standard
+
+# Standard MIPS ticker with FDT attachment
+mips/mediatek/mtk_tick_mips.c		optional !gic_timer
+
+# MIPS GIC ticker - placeholder for now
+mips/mediatek/mtk_tick_gic.c		optional gic_timer
+
+# Temporary Reset if
+mips/mediatek/fdt_reset.c		standard
+mips/mediatek/fdt_reset_if.m		standard

@@ -1,0 +1,184 @@
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	compatible = "ralink,mtk7628an-soc";
+
+	cpus {
+		cpu@0 {
+			compatible = "mips,mips24KEc";
+		};
+	};
+
+	chosen {
+		bootargs = "console=ttyS0,57600";
+	};
+
+	ticker {
+		compatible = "mti,mips-ticker";
+	};
+
+	cpuintc: cpuintc@0 {
+		#address-cells = <0>;
+		#interrupt-cells = <1>;
+		interrupt-controller;
+		compatible = "mti,cpu-interrupt-controller";
+	};
+
+	palmbus@10000000 {
+		compatible = "palmbus";
+		reg = <0x10000000 0x200000>;
+		ranges = <0x0 0x10000000 0x1FFFFF>;
+
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		sysc@0 {
+			compatible = "ralink,mt7620a-sysc";
+			reg = <0x0 0x100>;
+		};
+
+		intc: intc@200 {
+			compatible = "ralink,mt7628an-intc";
+			reg = <0x200 0x100>;
+
+			resets = <&rstctrl 9>;
+			reset-names = "intc";
+
+			interrupt-controller;
+			#interrupt-cells = <1>;
+
+			interrupt-parent = <&cpuintc>;
+			interrupts = <2>;
+
+			ralink,intc-registers = <0x9c 0xa0
+						 0x6c 0xa4
+						 0x80 0x78>;
+		};
+
+		gpio0: gpio@0 {
+			compatible = "mtk,mt7628-gpio", "mtk,mt7621-gpio";
+			reg = <0x600 0x100>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+
+			interrupt-parent = <&intc>;
+			interrupts = <6>;
+
+			mtk,num-pins = <32>;
+		};
+
+		gpio1: gpio@1 {
+			compatible = "mtk,mt7628-gpio", "mtk,mt7621-gpio";
+			reg = <0x600 0x100>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+
+			interrupt-parent = <&intc>;
+			interrupts = <6>;
+
+			mtk,num-pins = <17>;
+		};
+
+		spi@b00 {
+			compatible = "ralink,mt7621-spi";
+			reg = <0xb00 0x100>;
+
+			resets = <&rstctrl 18>;
+			reset-names = "spi";
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+/*
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi_pins>;
+
+			status = "disabled";
+*/
+		};
+
+		uartlite: uartlite@e00 {
+			compatible = "mtk,ns16550a";
+			reg = <0xe00 0x100>;
+
+			reg-shift = <2>;
+			reg-io-width = <4>;
+			no-loopback-test;
+
+			resets = <&rstctrl 12>;
+			reset-names = "uartl";
+
+			interrupt-parent = <&intc>;
+			interrupts = <22>;
+
+			/*pinctrl-names = "default";
+			pinctrl-0 = <&uart0_pins>;*/
+		};
+	};
+
+	rstctrl: rstctrl {
+		compatible = "ralink,mt7620a-reset", "ralink,rt2880-reset";
+		#reset-cells = <1>;
+	};
+
+	clkctrl: clkctrl {
+		compatible = "ralink,mt7620a-clock", "ralink,rt2880-clock";
+		#clock-cells = <1>;
+	};
+
+	pinctrl: pinctrl {
+		compatible = "ralink,mt7628a-pinctrl", "ralink,rt2880-pinctrl";
+	};
+
+	usbphy: usbphy {
+		compatible = "ralink,mt7628an-usbphy";
+		#phy-cells = <1>;
+		reg = <0x10120000 0x1000>;
+
+		resets = <&rstctrl 22 &rstctrl 25>;
+		clocks = <&clkctrl 22 &clkctrl 25>;
+		reset-names = "host";
+	};
+
+	ehci@101c0000 {
+		compatible = "ralink,rt3xxx-ehci";
+		reg = <0x101c0000 0x1000>;
+
+		phys = <&usbphy 1>;
+		phy-names = "usb";
+
+		interrupt-parent = <&intc>;
+		interrupts = <18>;
+	};
+
+	ohci@101c1000 {
+		compatible = "ralink,rt3xxx-ohci";
+		reg = <0x101c1000 0x1000>;
+
+		phys = <&usbphy 1>;
+		phy-names = "usb";
+
+		interrupt-parent = <&intc>;
+		interrupts = <18>;
+        };
+
+	ethernet@10100000 {
+		compatible = "ralink,rt5350-eth";
+		reg = <0x10100000 10000>;
+
+		interrupt-parent = <&cpuintc>;
+		interrupts = <5>;
+
+		resets = <&rstctrl 21 &rstctrl 23>;
+		reset-names = "fe", "esw";
+	};
+
+};

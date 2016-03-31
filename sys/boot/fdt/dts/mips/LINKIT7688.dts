@@ -1,0 +1,56 @@
+/dts-v1/;
+
+/include/ "mt7628an.dtsi"
+
+/ {
+	compatible = "mediatek,linkit", "mediatek,mt7628an-soc";
+	model = "MediaTek LinkIt Smart 7688";
+
+	chosen {
+		bootargs = "-v";
+		stdin = &uartlite;
+		stdout = &uartlite;
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x8000000>;
+	};
+
+	palmbus@10000000 {
+		compatible = "simple-bus";
+
+		spi@b00 {
+			flash {
+				compatible = "st,m25p";
+				spi-chipselect = <0>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				slice@0x0 {
+					reg = <0x0 0x30000>;
+					label = "u-boot";
+					read-only;
+				};
+
+				slice@0x30000 {
+					reg = <0x30000 0x10000>;
+					label = "u-boot-env";
+					read-only;
+				};
+
+				slice@0x40000 {
+					reg = <0x40000 0x10000>;
+					label = "factory";
+					read-only;
+				};
+
+				slice@0x50000 {
+					reg = <0x50000 0x2000000>;
+					label = "firmware";
+					read-only;
+				};
+			};
+		};
+	};
+};
