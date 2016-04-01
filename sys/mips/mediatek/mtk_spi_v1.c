@@ -247,6 +247,8 @@ mtk_spi_transfer(device_t dev, device_t child, struct spi_command *cmd)
                         cmd->tx_cmd_sz = 1;
                         cmd->rx_cmd_sz = 3;
                         break;
+		case CMD_ENTER_4B_MODE:
+		case CMD_EXIT_4B_MODE:
                 case CMD_WRITE_ENABLE:
                 case CMD_WRITE_DISABLE:
                         cmd->tx_cmd_sz = 1;
@@ -257,17 +259,13 @@ mtk_spi_transfer(device_t dev, device_t child, struct spi_command *cmd)
                         cmd->rx_cmd_sz = 1;
                         break;
                 case CMD_READ:
-                        cmd->tx_cmd_sz = 4;
                 case CMD_FAST_READ:
-                        cmd->tx_cmd_sz = 5;
                         cmd->rx_cmd_sz = cmd->tx_data_sz = 0;
                         break;
                 case CMD_SECTOR_ERASE:
-                        cmd->tx_cmd_sz = 4;
-                        cmd->rx_cmd_sz = cmd->tx_data_sz = 0;
+                        cmd->rx_cmd_sz = 0;
                         break;
                 case CMD_PAGE_PROGRAM:
-                        cmd->tx_cmd_sz = 4;
                         cmd->rx_cmd_sz = cmd->rx_data_sz = 0;
                         break;
         }      
