@@ -106,6 +106,7 @@ device		gpioled
 device		spibus
 device		mx25l
 
+device		pci
 device		usb
 device		usbphy
 device		ehci

@@ -16,7 +16,7 @@ mips/mediatek/mtk_usb_phy.c		optional usb usbphy
 mips/mediatek/mtk_ohci.c		optional usb ohci
 mips/mediatek/mtk_ehci.c		optional usb ehci
 mips/mediatek/mtk_dotg.c		optional usb dwcotg
-#mips/mediatek/mtk_pcie.c		optional pci
+mips/mediatek/mtk_pcie.c		optional pci
 mips/mediatek/mtk_gpio_v1.c		optional gpio
 mips/mediatek/mtk_gpio_v2.c		optional gpio
 mips/mediatek/if_rt.c			optional rt
