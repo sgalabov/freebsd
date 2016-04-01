@@ -181,4 +181,19 @@
 		reset-names = "fe", "esw";
 	};
 
+	pcie@10140000 {
+		compatible = "ralink,mt7628-pcie";
+		reg = <0x10140000 0x10000>;
+
+		ranges = <1 0x10160000 0x00010000
+			  2 0x20000000 0x10000000>;
+
+		interrupt-parent = <&cpuintc>;
+		interrupts = <4>;
+
+		resets = <&rstctrl 26>, <&rstctrl 27>;
+		reset-names = "pcie0", "pcie1";
+		clocks = <&clkctrl 26>, <&clkctrl 27>;
+	};
+
 };
