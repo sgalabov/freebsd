@@ -238,7 +238,7 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 
 	init_static_kenv(boot1_env, sizeof(boot1_env));
 
-	printf("FDT DTB at: 0x%08x\n", (uint32_t)dtbp);
+	printf("FDT DTB  at: 0x%08x\n", (uint32_t)dtbp);
 
 	printf("CPU   clock: %4dMHz\n", mtk_soc_get_cpuclk()/(1000*1000));
 	printf("Timer clock: %4dMHz\n", timer_clk/(1000*1000));
