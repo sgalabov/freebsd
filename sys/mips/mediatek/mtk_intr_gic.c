@@ -243,7 +243,6 @@ static int
 mtk_gic_intr(void *arg)
 {
 	struct mtk_gic_softc *sc = arg;
-	struct intr_irqsrc *isrc;
 	struct thread *td;
 	uint32_t i, intr;
 
@@ -256,14 +255,13 @@ mtk_gic_intr(void *arg)
 		i--;
 		intr &= ~(1u << i);
 
-		isrc = (struct intr_irqsrc *)GIC_INTR_ISRC(sc, i);
-		if (isrc == NULL) {
+		if (intr_isrc_dispatch(GIC_INTR_ISRC(sc, i),
+		    curthread->td_intr_frame) != 0) {
 			device_printf(sc->gic_dev,
 				"Stray interrupt %u detected\n", i);
 			gic_irq_mask(sc, i);
 			continue;
 		}
-		intr_isrc_dispatch(isrc, td->td_intr_frame);
 	}
 
 	KASSERT(i == 0, ("all interrupts handled"));

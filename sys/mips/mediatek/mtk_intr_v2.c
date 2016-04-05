@@ -218,7 +218,6 @@ static int
 mtk_pic_intr(void *arg)
 {
 	struct mtk_pic_softc *sc = arg;
-	struct intr_irqsrc *isrc;
 	struct thread *td;
 	uint32_t i, intr;
 
@@ -232,14 +231,13 @@ mtk_pic_intr(void *arg)
 		i--;
 		intr &= ~(1u << i);
 
-		isrc = (struct intr_irqsrc *)PIC_INTR_ISRC(sc, i);
-		if (isrc == NULL) {
+		if (intr_isrc_dispatch(PIC_INTR_ISRC(sc, i),
+		    curthread->td_intr_frame) != 0) {
 			device_printf(sc->pic_dev,
 			    "Stray interrupt %u detected\n", i);
 			pic_irq_mask(sc, i);
 			continue;
 		}
-		intr_isrc_dispatch(isrc, td->td_intr_frame);
 	}
 
 	KASSERT(i == 0, ("all interrupts handled"));
@@ -251,14 +249,13 @@ mtk_pic_intr(void *arg)
 		i--;
 		intr &= ~(1u << i);
 
-		isrc = (struct intr_irqsrc *)PIC_INTR_ISRC(sc, i);
-		if (isrc == NULL) {
+		if (intr_isrc_dispatch(PIC_INTR_ISRC(sc, i),
+		    curthread->td_intr_frame) != 0) {
 			device_printf(sc->pic_dev,
 				"Stray interrupt %u detected\n", i);
 			pic_irq_mask(sc, i);
 			continue;
 		}
-		intr_isrc_dispatch(isrc, td->td_intr_frame);
 	}
 
 	KASSERT(i == 0, ("all interrupts handled"));
