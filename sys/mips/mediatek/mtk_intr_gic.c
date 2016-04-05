@@ -375,7 +375,5 @@ static driver_t mtk_gic_driver = {
 
 static devclass_t mtk_gic_devclass;
 
-EARLY_DRIVER_MODULE(intc_gic, ofwbus, mtk_gic_driver, mtk_gic_devclass, 0, 0,
-    BUS_PASS_INTERRUPT + BUS_PASS_ORDER_MIDDLE);
 EARLY_DRIVER_MODULE(intc_gic, simplebus, mtk_gic_driver, mtk_gic_devclass, 0, 0,
     BUS_PASS_INTERRUPT + BUS_PASS_ORDER_MIDDLE);

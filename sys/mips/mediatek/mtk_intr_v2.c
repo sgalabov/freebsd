@@ -347,7 +347,5 @@ static driver_t mtk_pic_driver = {
 
 static devclass_t mtk_pic_devclass;
 
-EARLY_DRIVER_MODULE(intc_v2, ofwbus, mtk_pic_driver, mtk_pic_devclass, 0, 0,
-    BUS_PASS_INTERRUPT + BUS_PASS_ORDER_MIDDLE);
 EARLY_DRIVER_MODULE(intc_v2, simplebus, mtk_pic_driver, mtk_pic_devclass, 0, 0,
     BUS_PASS_INTERRUPT + BUS_PASS_ORDER_MIDDLE);
