@@ -77,14 +77,21 @@ __FBSDID("$FreeBSD$");
 
 static int mtk_gic_intr(void *);
 
+struct mtk_gic_irqsrc {
+	struct intr_irqsrc	isrc;
+	u_int			irq;
+};
+
 struct mtk_gic_softc {
 	device_t		gic_dev;
 	void *                  gic_intrhand;
 	struct resource *       gic_res[2];
-	struct intr_irqsrc *	gic_irqs[MTK_NIRQS];
+	struct mtk_gic_irqsrc	gic_irqs[MTK_NIRQS];
 	struct mtx		mutex;
 	uint32_t		nirqs;
 };
+
+#define GIC_INTR_ISRC(sc, irq)	(&(sc)->gic_irqs[(irq)].isrc)
 
 static struct resource_spec mtk_gic_spec[] = {
 	{ SYS_RES_MEMORY,	0,	RF_ACTIVE },	/* Registers */
@@ -143,6 +150,29 @@ gic_xref(device_t dev)
 }
 
 static int
+mtk_gic_register_isrcs(struct mtk_gic_softc *sc)
+{
+	int error;
+	uint32_t irq;
+	struct intr_irqsrc *isrc;
+	const char *name;
+
+	name = device_get_nameunit(sc->gic_dev);
+	for (irq = 0; irq < sc->nirqs; irq++) {
+		sc->gic_irqs[irq].irq = irq;
+		isrc = GIC_INTR_ISRC(sc, irq);
+		error = intr_isrc_register(isrc, sc->gic_dev, 0, "%s", name);
+		if (error != 0) {
+			/* XXX call intr_isrc_deregister */
+			device_printf(sc->gic_dev, "%s failed", __func__);
+			return (error);
+		}
+	}
+
+	return (0);
+}
+
+static int
 mtk_gic_attach(device_t dev)
 {
 	struct mtk_gic_softc *sc;
@@ -181,6 +211,12 @@ mtk_gic_attach(device_t dev)
 		WRITE4(sc, MTK_MAPVPE(i, 0), MTK_VPE_BITS(0));
 	}
 
+	/* Register the interrupts */
+	if (mtk_gic_register_isrcs(sc) != 0) {
+		device_printf(dev, "could not register GIC ISRCs\n");
+		goto cleanup;
+	}
+
 	/*
 	 * Now, when everything is initialized, it's right time to
 	 * register interrupt controller to interrupt framefork.
@@ -193,7 +229,7 @@ mtk_gic_attach(device_t dev)
 	if (bus_setup_intr(dev, sc->gic_res[1], INTR_TYPE_CLK,
 	    mtk_gic_intr, NULL, sc, &sc->gic_intrhand)) {
 		device_printf(dev, "could not setup irq handler\n");
-		intr_pic_unregister(dev, xref);
+		intr_pic_deregister(dev, xref);
 		goto cleanup;
 	}
 	return (0);
@@ -220,14 +256,14 @@ mtk_gic_intr(void *arg)
 		i--;
 		intr &= ~(1u << i);
 
-		isrc = sc->gic_irqs[i];
+		isrc = (struct intr_irqsrc *)GIC_INTR_ISRC(sc, i);
 		if (isrc == NULL) {
 			device_printf(sc->gic_dev,
 				"Stray interrupt %u detected\n", i);
 			gic_irq_mask(sc, i);
 			continue;
 		}
-		intr_irq_dispatch(isrc, td->td_intr_frame);
+		intr_isrc_dispatch(isrc, td->td_intr_frame);
 	}
 
 	KASSERT(i == 0, ("all interrupts handled"));
@@ -238,129 +274,55 @@ mtk_gic_intr(void *arg)
 }
 
 static int
-gic_attach_isrc(struct mtk_gic_softc *sc, struct intr_irqsrc *isrc, u_int irq)
+mtk_gic_map_intr(device_t dev, struct intr_map_data *data,
+    struct intr_irqsrc **isrcp)
 {
-	const char *name;
+#ifdef FDT
+	struct mtk_gic_softc *sc;
 
-	/*
-	 * 1. The link between ISRC and controller must be set atomically.
-	 * 2. Just do things only once in rare case when consumers
-	 *    of shared interrupt came here at the same moment.
-	 */
-	mtx_lock_spin(&sc->mutex);
-	if (sc->gic_irqs[irq] != NULL) {
-		mtx_unlock_spin(&sc->mutex);
-		return (sc->gic_irqs[irq] == isrc ? 0 : EEXIST);
-	}
-	sc->gic_irqs[irq] = isrc;
-	isrc->isrc_data = irq;
-	mtx_unlock_spin(&sc->mutex);
+	sc = device_get_softc(dev);
 
-	name = device_get_nameunit(sc->gic_dev);
-	intr_irq_set_name(isrc, "%s,i%u", name, irq);
-	return (0);
-}
-
-static int
-gic_detach_isrc(struct mtk_gic_softc *sc, struct intr_irqsrc *isrc, u_int irq)
-{
-
-	mtx_lock_spin(&sc->mutex);
-	if (sc->gic_irqs[irq] != isrc) {
-		mtx_unlock_spin(&sc->mutex);
-		return (sc->gic_irqs[irq] == NULL ? 0 : EINVAL);
-	}
-	sc->gic_irqs[irq] = NULL;
-	isrc->isrc_data = 0;
-	mtx_unlock_spin(&sc->mutex);
-
-	intr_irq_set_name(isrc, "%s", "");
-	return (0);
-}
-
-static int
-gic_map_fdt(struct mtk_gic_softc *sc, struct intr_irqsrc *isrc, u_int *irqp)
-{
-	u_int irq;
-	int error;
-
-	irq = isrc->isrc_cells[0];
-	if (irq >= sc->nirqs)
+	if (data == NULL || data->type != INTR_MAP_DATA_FDT ||
+	    data->fdt.ncells != 1 || data->fdt.cells[0] >= sc->nirqs)
 		return (EINVAL);
 
-	error = gic_attach_isrc(sc, isrc, irq);
-	if (error != 0)
-		return (error);
-
-	isrc->isrc_nspc_type = INTR_IRQ_NSPC_PLAIN;
-	isrc->isrc_nspc_num = irq;
-	isrc->isrc_trig = INTR_TRIGGER_CONFORM;
-	isrc->isrc_pol = INTR_POLARITY_CONFORM;
-
-	*irqp = irq;
+	*isrcp = GIC_INTR_ISRC(sc, data->fdt.cells[0]);
 	return (0);
-}
-
-static int
-mtk_gic_register(device_t dev, struct intr_irqsrc *isrc, boolean_t *is_percpu)
-{
-	struct mtk_gic_softc *sc = device_get_softc(dev);
-	u_int irq;
-	int error;
-
-	if (isrc->isrc_type == INTR_ISRCT_FDT)
-		error = gic_map_fdt(sc, isrc, &irq);
-	else
-		return (EINVAL);
-
-	if (error == 0)
-		*is_percpu = TRUE;
-	return (error);
+#else
+	return (EINVAL);
+#endif
 }
 
 static void
 mtk_gic_enable_intr(device_t dev, struct intr_irqsrc *isrc)
 {
-	if (isrc->isrc_trig == INTR_TRIGGER_CONFORM)
-		isrc->isrc_trig = INTR_TRIGGER_LEVEL;
+	u_int irq;
+
+	irq = ((struct mtk_gic_irqsrc *)isrc)->irq;
+	gic_irq_unmask(device_get_softc(dev), irq);
 }
 
 static void
-mtk_gic_enable_source(device_t dev, struct intr_irqsrc *isrc)
+mtk_gic_disable_intr(device_t dev, struct intr_irqsrc *isrc)
 {
-	struct mtk_gic_softc *sc = device_get_softc(dev);
+	u_int irq;
 
-	gic_irq_unmask(sc, isrc->isrc_data);
-}
-
-static void
-mtk_gic_disable_source(device_t dev, struct intr_irqsrc *isrc)
-{
-	struct mtk_gic_softc *sc = device_get_softc(dev);
-
-	gic_irq_mask(sc, isrc->isrc_data);
-}
-
-static int
-mtk_gic_unregister(device_t dev, struct intr_irqsrc *isrc)
-{
-	struct mtk_gic_softc *sc = device_get_softc(dev);
-
-	return (gic_detach_isrc(sc, isrc, isrc->isrc_data));
+	irq = ((struct mtk_gic_irqsrc *)isrc)->irq;
+	gic_irq_mask(device_get_softc(dev), irq);
 }
 
 static void
 mtk_gic_pre_ithread(device_t dev, struct intr_irqsrc *isrc)
 {
 
-	mtk_gic_disable_source(dev, isrc);
+	mtk_gic_disable_intr(dev, isrc);
 }
 
 static void
 mtk_gic_post_ithread(device_t dev, struct intr_irqsrc *isrc)
 {
 
-	mtk_gic_enable_source(dev, isrc);
+	mtk_gic_enable_intr(dev, isrc);
 }
 
 static void
@@ -391,14 +353,12 @@ static device_method_t mtk_gic_methods[] = {
 	DEVMETHOD(device_probe,		mtk_gic_probe),
 	DEVMETHOD(device_attach,	mtk_gic_attach),
 	/* Interrupt controller interface */
-	DEVMETHOD(pic_disable_source,	mtk_gic_disable_source),
+	DEVMETHOD(pic_disable_intr,	mtk_gic_disable_intr),
 	DEVMETHOD(pic_enable_intr,	mtk_gic_enable_intr),
-	DEVMETHOD(pic_enable_source,	mtk_gic_enable_source),
+	DEVMETHOD(pic_map_intr,		mtk_gic_map_intr),
 	DEVMETHOD(pic_post_filter,	mtk_gic_post_filter),
 	DEVMETHOD(pic_post_ithread,	mtk_gic_post_ithread),
 	DEVMETHOD(pic_pre_ithread,	mtk_gic_pre_ithread),
-	DEVMETHOD(pic_register,		mtk_gic_register),
-	DEVMETHOD(pic_unregister,	mtk_gic_unregister),
 #ifdef SMP
 	DEVMETHOD(pic_bind,		mtk_gic_bind),
 	DEVMETHOD(pic_init_secondary,	mtk_gic_init_secondary),
