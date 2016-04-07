@@ -59,13 +59,18 @@ __FBSDID("$FreeBSD$");
 
 #define MTK_GPIO_PINS 32
 
+struct mtk_gpio_pin_irqsrc {
+	struct intr_irqsrc	isrc;
+	u_int			irq;
+};
+
 struct mtk_gpio_pin {
-	uint32_t pin_caps;
-	uint32_t pin_flags;
-	enum intr_trigger intr_trigger;
-	enum intr_polarity intr_polarity;
-	char pin_name[GPIOMAXNAME];
-	struct intr_irqsrc *pin_irqsrc;
+	uint32_t			pin_caps;
+	uint32_t			pin_flags;
+	enum intr_trigger		intr_trigger;
+	enum intr_polarity		intr_polarity;
+	char				pin_name[GPIOMAXNAME];
+	struct mtk_gpio_pin_irqsrc	pin_irqsrc;
 };
 
 struct mtk_gpio_softc {
@@ -79,6 +84,8 @@ struct mtk_gpio_softc {
 	uint32_t		num_pins;
 	uint32_t		bank_id;
 };
+
+#define PIC_INTR_ISRC(sc, irq)	(&(sc)->pins[(irq)].pin_irqsrc.isrc)
 
 static struct resource_spec mtk_gpio_spec[] = {
 	{ SYS_RES_MEMORY, 0, RF_ACTIVE | RF_SHAREABLE },
@@ -134,9 +141,32 @@ mtk_gpio_probe(device_t dev)
 	if (!OF_hasprop(node, "gpio-controller"))
 		return (ENXIO);
 
-	device_set_desc(dev, "MTK GPIO Controller");
+	device_set_desc(dev, "MTK GPIO Controller (v2)");
 
 	return (BUS_PROBE_DEFAULT);
+}
+
+static int
+mtk_pic_register_isrcs(struct mtk_gpio_softc *sc)
+{
+	int error;
+	uint32_t irq;
+	struct intr_irqsrc *isrc;
+	const char *name;
+
+	name = device_get_nameunit(sc->dev);
+	for (irq = 0; irq < sc->num_pins; irq++) {
+		sc->pins[irq].pin_irqsrc.irq = irq;
+		isrc = PIC_INTR_ISRC(sc, irq);
+		error = intr_isrc_register(isrc, sc->dev, 0, "%s", name);
+		if (error != 0) {
+			/* XXX call intr_isrc_deregister */
+			device_printf(sc->dev, "%s failed", __func__);
+			return (error);
+		}
+	}
+
+	return (0);
 }
 
 static int
@@ -264,6 +294,11 @@ mtk_gpio_attach(device_t dev)
 		mtk_gpio_pin_probe(sc, i);
 	}
 
+	if (mtk_pic_register_isrcs(sc) != 0) {
+		device_printf(dev, "could not register PIC ISRCs\n");
+		goto fail;
+	}
+
 	if (intr_pic_register(dev, OF_xref_from_node(node)) != 0) {
 		device_printf(dev, "could not register PIC\n");
 		goto fail;
@@ -279,7 +314,7 @@ mtk_gpio_attach(device_t dev)
 
 	return (0);
 fail_pic:
-	intr_pic_unregister(dev, OF_xref_from_node(node));
+	intr_pic_deregister(dev, OF_xref_from_node(node));
 fail:
 	if(sc->intrhand != NULL)
 		bus_teardown_intr(dev, sc->res[1], sc->intrhand);
@@ -295,7 +330,7 @@ mtk_gpio_detach(device_t dev)
 	phandle_t node;
 
 	node = ofw_bus_get_node(dev);
-	intr_pic_unregister(dev, OF_xref_from_node(node));
+	intr_pic_deregister(dev, OF_xref_from_node(node));
 	if (sc->intrhand != NULL)
 		bus_teardown_intr(dev, sc->res[1], sc->intrhand);
 	bus_release_resources(dev, mtk_gpio_spec, sc->res);
@@ -446,82 +481,18 @@ mtk_gpio_pin_toggle(device_t dev, uint32_t pin)
 }
 
 static int
-mtk_gpio_pic_register(device_t dev, struct intr_irqsrc *isrc,
-    boolean_t *is_percpu)
+mtk_gpio_pic_map_intr(device_t dev, struct intr_map_data *data,
+    struct intr_irqsrc **isrcp)
 {
 	struct mtk_gpio_softc *sc;
-	uint32_t pin, tripol;
 
 	sc = device_get_softc(dev);
 
-	if (isrc->isrc_ncells != 2) {
-		device_printf(sc->dev, "Invalid #interrupt-cells");
+	if (data == NULL || data->type != INTR_MAP_DATA_FDT ||
+	    data->fdt.ncells != 1 || data->fdt.cells[0] >= sc->num_pins)
 		return (EINVAL);
-	}
 
-	pin = isrc->isrc_cells[0];
-	tripol = isrc->isrc_cells[1];
-	if (pin >= sc->num_pins) {
-		device_printf(sc->dev, "Invalid interrupt number %d", pin);
-		return (EINVAL);
-	}
-
-	switch (tripol)
-	{
-	case IRQ_TYPE_EDGE_RISING:
-		isrc->isrc_trig = INTR_TRIGGER_EDGE;
-		isrc->isrc_pol  = INTR_POLARITY_HIGH;
-		break;
-	case IRQ_TYPE_EDGE_FALLING:
-		isrc->isrc_trig = INTR_TRIGGER_EDGE;
-		isrc->isrc_pol  = INTR_POLARITY_LOW;
-		break;
-	default:
-		device_printf(sc->dev, "unsupported trigger/polarity 0x%2x\n",
-		    tripol);
-		return (ENOTSUP);
-	}
-
-	isrc->isrc_nspc_type = INTR_IRQ_NSPC_PLAIN;
-	isrc->isrc_nspc_num = pin;
-
-	/*
-	 * 1. The link between ISRC and controller must be set atomically.
-	 * 2. Just do things only once in rare case when consumers
-	 *    of shared interrupt came here at the same moment.
-	 */
-	MTK_GPIO_LOCK(sc);
-	if (sc->pins[pin].pin_irqsrc != NULL) {
-		MTK_GPIO_UNLOCK(sc);
-		return (sc->pins[pin].pin_irqsrc == isrc ? 0 : EEXIST);
-	}
-	sc->pins[pin].pin_irqsrc = isrc;
-	isrc->isrc_data = pin;
-	MTK_GPIO_UNLOCK(sc);
-
-	intr_irq_set_name(isrc, "%s,%u", device_get_nameunit(sc->dev), pin);
-	return (0);
-}
-
-static int
-mtk_gpio_pic_unregister(device_t dev, struct intr_irqsrc *isrc)
-{
-	struct mtk_gpio_softc *sc;
-	u_int irq;
-
-	sc = device_get_softc(dev);
-
-	MTK_GPIO_LOCK(sc);
-	irq = isrc->isrc_data;
-	if (sc->pins[irq].pin_irqsrc != isrc) {
-		MTK_GPIO_UNLOCK(sc);
-		return (sc->pins[irq].pin_irqsrc == NULL ? 0 : EINVAL);
-	}
-	sc->pins[irq].pin_irqsrc = NULL;
-	isrc->isrc_data = 0;
-	MTK_GPIO_UNLOCK(sc);
-
-	intr_irq_set_name(isrc, "%s", "");
+	*isrcp = PIC_INTR_ISRC(sc, data->fdt.cells[0]);
 	return (0);
 }
 
@@ -529,16 +500,18 @@ static void
 mtk_gpio_pic_enable_intr(device_t dev, struct intr_irqsrc *isrc)
 {
 	struct mtk_gpio_softc *sc;
+	struct mtk_gpio_pin_irqsrc *pisrc;
 	uint32_t pin, mask, val;
 
 	sc = device_get_softc(dev);
 
-	pin = isrc->isrc_data;
+	pisrc = (struct mtk_gpio_pin_irqsrc *)isrc;
+	pin = pisrc->irq;
 	mask = 1u << pin;
 
 	MTK_GPIO_LOCK(sc);
 
-	if (isrc->isrc_pol == INTR_POLARITY_LOW) {
+	if (sc->pins[pin].intr_polarity == INTR_POLARITY_LOW) {
 		val = MTK_READ_4(sc, GPIO_PIORENA(sc)) & ~mask;
 		MTK_WRITE_4(sc, GPIO_PIORENA(sc), val);
 		val = MTK_READ_4(sc, GPIO_PIOFENA(sc)) | mask;
@@ -550,69 +523,55 @@ mtk_gpio_pic_enable_intr(device_t dev, struct intr_irqsrc *isrc)
 		MTK_WRITE_4(sc, GPIO_PIORENA(sc), val);
 	}
 
-	sc->pins[pin].intr_trigger = isrc->isrc_trig;
-	sc->pins[pin].intr_polarity = isrc->isrc_pol;
-
 	MTK_GPIO_UNLOCK(sc);
 }
 
 static void
-mtk_gpio_pic_enable_source(device_t dev, struct intr_irqsrc *isrc)
+mtk_gpio_pic_disable_intr(device_t dev, struct intr_irqsrc *isrc)
 {
 	struct mtk_gpio_softc *sc;
-	uint32_t val;
+	struct mtk_gpio_pin_irqsrc *pisrc;
+	uint32_t pin, mask, val;
 
 	sc = device_get_softc(dev);
-	if (isrc->isrc_pol == INTR_POLARITY_LOW) {
-		val = MTK_READ_4(sc, GPIO_PIOFENA(sc));
-		MTK_WRITE_4(sc, GPIO_PIOFENA(sc),
-		    val | (1u << isrc->isrc_data));
-	} else {
-		val = MTK_READ_4(sc, GPIO_PIORENA(sc));
-		MTK_WRITE_4(sc, GPIO_PIORENA(sc),
-		    val | (1u << isrc->isrc_data));
-	}
-}
 
-static void
-mtk_gpio_pic_disable_source(device_t dev, struct intr_irqsrc *isrc)
-{
-	struct mtk_gpio_softc *sc;
-	uint32_t val;
+	pisrc = (struct mtk_gpio_pin_irqsrc *)isrc;
+	pin = pisrc->irq;
+	mask = 1u << pin;
 
-	sc = device_get_softc(dev);
-	if (isrc->isrc_pol == INTR_POLARITY_LOW) {
-		val = MTK_READ_4(sc, GPIO_PIOFENA(sc));
-		MTK_WRITE_4(sc, GPIO_PIOFENA(sc),
-		    val & ~(1u << isrc->isrc_data));
-	} else {
-		val = MTK_READ_4(sc, GPIO_PIORENA(sc));
-		MTK_WRITE_4(sc, GPIO_PIORENA(sc),
-		    val & ~(1u << isrc->isrc_data));
-	}
+	MTK_GPIO_LOCK(sc);
+
+	val = MTK_READ_4(sc, GPIO_PIORENA(sc)) & ~mask;
+	MTK_WRITE_4(sc, GPIO_PIORENA(sc), val);
+	val = MTK_READ_4(sc, GPIO_PIOFENA(sc)) & ~mask;
+	MTK_WRITE_4(sc, GPIO_PIOFENA(sc), val);
+
+	MTK_GPIO_UNLOCK(sc);
 }
 
 static void
 mtk_gpio_pic_pre_ithread(device_t dev, struct intr_irqsrc *isrc)
 {
 
-	mtk_gpio_pic_disable_source(dev, isrc);
+	mtk_gpio_pic_disable_intr(dev, isrc);
 }
 
 static void
 mtk_gpio_pic_post_ithread(device_t dev, struct intr_irqsrc *isrc)
 {
 
-	mtk_gpio_pic_enable_source(dev, isrc);
+	mtk_gpio_pic_enable_intr(dev, isrc);
 }
 
 static void
 mtk_gpio_pic_post_filter(device_t dev, struct intr_irqsrc *isrc)
 {
 	struct mtk_gpio_softc *sc;
+	struct mtk_gpio_pin_irqsrc *pisrc;
 
+	pisrc = (struct mtk_gpio_pin_irqsrc *)isrc;
 	sc = device_get_softc(dev);
-	MTK_WRITE_4(sc, GPIO_PIOINT(sc), 1u << isrc->isrc_data);
+	MTK_WRITE_4(sc, GPIO_PIOINT(sc), 1u << pisrc->irq);
 }
 
 static int
@@ -627,12 +586,11 @@ mtk_gpio_intr(void *arg)
 	for (i = 0; interrupts != 0; i++, interrupts >>= 1) {
 		if ((interrupts & 0x1) == 0)
 			continue;
-                if (sc->pins[i].pin_irqsrc)
-			intr_irq_dispatch(sc->pins[i].pin_irqsrc,
-			    curthread->td_intr_frame);
-		else
+		if (intr_isrc_dispatch(PIC_INTR_ISRC(sc, i),
+		    curthread->td_intr_frame) != 0) {
 			device_printf(sc->dev, "spurious interrupt %d\n", i);
-	}       
+		}
+	}
 
 	return (FILTER_HANDLED);
 }
@@ -663,14 +621,12 @@ static device_method_t mtk_gpio_methods[] = {
 	DEVMETHOD(gpio_pin_toggle,	mtk_gpio_pin_toggle),
 
 	/* Interrupt controller interface */
-	DEVMETHOD(pic_disable_source,	mtk_gpio_pic_disable_source),
+	DEVMETHOD(pic_disable_intr,	mtk_gpio_pic_disable_intr),
 	DEVMETHOD(pic_enable_intr,	mtk_gpio_pic_enable_intr),
-	DEVMETHOD(pic_enable_source,	mtk_gpio_pic_enable_source),
+	DEVMETHOD(pic_map_intr,		mtk_gpio_pic_map_intr),
 	DEVMETHOD(pic_post_filter,	mtk_gpio_pic_post_filter),
 	DEVMETHOD(pic_post_ithread,	mtk_gpio_pic_post_ithread),
 	DEVMETHOD(pic_pre_ithread,	mtk_gpio_pic_pre_ithread),
-	DEVMETHOD(pic_register,		mtk_gpio_pic_register),
-	DEVMETHOD(pic_unregister,	mtk_gpio_pic_unregister),
 
 	/* ofw_bus interface */
 	DEVMETHOD(ofw_bus_get_node,	mtk_gpio_get_node),
