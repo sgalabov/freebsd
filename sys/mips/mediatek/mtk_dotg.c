@@ -132,16 +132,9 @@ dotg_fdt_attach(device_t dev)
 	}
 	device_set_ivars(sc->sc_bus.bdev, &sc->sc_bus);
 
-#if (__FreeBSD_version >= 700031)
 	err = bus_setup_intr(dev, sc->sc_irq_res,
 	    INTR_TYPE_TTY | INTR_MPSAFE, dwc_otg_filter_interrupt,
 	    dwc_otg_interrupt, sc, &sc->sc_intr_hdl);
-#else
-	#error error
-	err = bus_setup_intr(dev, sc->sc_irq_res,
-	    INTR_TYPE_BIO | INTR_MPSAFE,(driver_intr_t*)dwc_otg_interrupt,
-	    sc, &sc->sc_intr_hdl);
-#endif
 	if (err) {
 		sc->sc_intr_hdl = NULL;
 		printf("Can`t set IRQ handle\n");
