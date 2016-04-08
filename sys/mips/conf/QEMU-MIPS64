@@ -1,0 +1,14 @@
+# QEMU-MIPS64 -- 64-bit kernel config for QEMU mips target
+#
+# $FreeBSD$
+ 
+ident		QEMU-MIPS64
+
+include		"std.QEMU-MIPS"
+ 
+machine		mips mips64el	# QEMU-MIPS supports both, so it isn't in
+				# std.QEMU-MIPS
+
+makeoptions	ARCH_FLAGS="-march=mips64 -mabi=64"
+ 
+makeoptions	KERNLOADADDR=0xffffffff80100000

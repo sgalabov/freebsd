@@ -1,0 +1,12 @@
+# QEMU-MIPS -- Kernel config for QEMU mips target
+#
+# $FreeBSD$
+ 
+ident		QEMU-MIPS
+
+include		"std.QEMU-MIPS"
+ 
+machine		mips mipsel	# QEMU-MIPS supports both, so it isn't in
+				# std.QEMU-MIPS
+ 
+makeoptions	KERNLOADADDR=0x80100000

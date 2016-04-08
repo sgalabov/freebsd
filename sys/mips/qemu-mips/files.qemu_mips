@@ -1,0 +1,10 @@
+# $FreeBSD$
+mips/qemu-mips/obio.c			optional uart
+mips/qemu-mips/uart_cpu_qemu_mips.c	optional uart
+mips/qemu-mips/uart_bus_qemu_mips.c	optional uart
+#dev/uart/uart_bus_isa.c			optional uart
+dev/uart/uart_dev_ns8250.c		optional uart
+#mips/qemu-mips/isa.c			standard
+mips/qemu-mips/qemu_mips_machdep.c	standard
+mips/mips/intr_machdep.c		standard
+mips/mips/tick.c			standard

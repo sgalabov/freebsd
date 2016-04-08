@@ -1,0 +1,13 @@
+# $FreeBSD$
+files	"../qemu-mips/files.qemu_mips"
+
+cpu		CPU_MIPS24K
+#device 		isa
+device 		ed
+#device		pci
+device		ata
+
+device		scbus		# SCSI bus (required for ATA/SCSI)
+device		cd		# CD
+device		da		# Direct Access (disks)
+device		pass		# Passthrough device (direct ATA/SCSI access)
