@@ -22,3 +22,13 @@
 
 include 	"MEDIATEK_BASE"
 cpu 		CPU_MIPS1004K
+
+device		ahci
+device		ada
+device		xhci
+device		miibus
+device		cdce
+device		umodem
+
+nooptions	ROOTDEVNAME
+options		ROOTDEVNAME=\"ufs:ada0s1\"
