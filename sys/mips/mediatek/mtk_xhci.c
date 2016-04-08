@@ -219,42 +219,42 @@ static devclass_t mtk_xhci_fdt_devclass;
 DRIVER_MODULE(xhci, simplebus, mtk_xhci_fdt_driver, mtk_xhci_fdt_devclass, 0,
     0);
 
-#define USB_HDMA_CFG		0x950
-#define USB_HDMA_CFG_MT7621_VAL	0x10e0e0c
+#define	USB_HDMA_CFG		0x950
+#define	USB_HDMA_CFG_MT7621_VAL	0x10E0E0C
 
-#define U3_LTSSM_TIMING_PARAM3	0x2514
-#define U3_LTSSM_TIMING_VAL	0x3e8012c
+#define	U3_LTSSM_TIMING_PARAM3	0x2514
+#define	U3_LTSSM_TIMING_VAL	0x3E8012C
 
-#define SYNC_HS_EOF		0x938
-#define SYNC_HS_EOF_VAL		0x201F3
+#define	SYNC_HS_EOF		0x938
+#define	SYNC_HS_EOF_VAL		0x201F3
 
-#define USB_IP_SPAR0		0x107C8
-#define USB_IP_SPAR0_VAL	1
+#define	USB_IP_SPAR0		0x107C8
+#define	USB_IP_SPAR0_VAL	1
 
-#define U2_PHY_BASE_P0		0x10800
-#define U2_PHY_BASE_P1		0x11000
-#define U2_PHYD_CR1		0x64
-#define U2_PHYD_CR1_MASK	(3<<18)
-#define U2_PHYD_CR1_VAL		(1<<18)
+#define	U2_PHY_BASE_P0		0x10800
+#define	U2_PHY_BASE_P1		0x11000
+#define	U2_PHYD_CR1		0x64
+#define	U2_PHYD_CR1_MASK	(3<<18)
+#define	U2_PHYD_CR1_VAL		(1<<18)
 
-#define USB_IP_PW_CTRL		0x10700
-#define USB_IP_PW_CTRL_1	0x10704
-#define USB_IP_CAP		0x10724
-#define USB_U3_CTRL(p)		(0x10730 + ((p) * 0x08))
-#define USB_U2_CTRL(p)		(0x10750 + ((p) * 0x08))
+#define	USB_IP_PW_CTRL		0x10700
+#define	USB_IP_PW_CTRL_1	0x10704
+#define	USB_IP_CAP		0x10724
+#define	USB_U3_CTRL(p)		(0x10730 + ((p) * 0x08))
+#define	USB_U2_CTRL(p)		(0x10750 + ((p) * 0x08))
 
-#define USB_IP_SW_RST		(1 << 0)
-#define USB_IP_PDN		(1 << 0)
+#define	USB_IP_SW_RST		(1 << 0)
+#define	USB_IP_PDN		(1 << 0)
 
-#define USB_PORT_DIS		(1 << 0)
-#define USB_PORT_PDN		(1 << 1)
+#define	USB_PORT_DIS		(1 << 0)
+#define	USB_PORT_PDN		(1 << 1)
 
-#define U3_PORT_NUM(p)		(p & 0xff)
-#define U2_PORT_NUM(p)		((p>>8) & 0xff)
+#define	U3_PORT_NUM(p)		(p & 0xFF)
+#define	U2_PORT_NUM(p)		((p>>8) & 0xFF)
 
-#define RD4(_sc, _reg)		bus_read_4((_sc)->sc_io_res, (_reg))
-#define WR4(_sc, _reg, _val)	bus_write_4((_sc)->sc_io_res, (_reg), (_val))
-#define CLRSET4(_sc, _reg, _clr, _set)	\
+#define	RD4(_sc, _reg)		bus_read_4((_sc)->sc_io_res, (_reg))
+#define	WR4(_sc, _reg, _val)	bus_write_4((_sc)->sc_io_res, (_reg), (_val))
+#define	CLRSET4(_sc, _reg, _clr, _set)	\
     WR4((_sc), (_reg), (RD4((_sc), (_reg)) & ~(_clr)) | (_set))
 
 static void
