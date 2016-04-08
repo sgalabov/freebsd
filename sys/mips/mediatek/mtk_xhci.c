@@ -141,9 +141,12 @@ mtk_xhci_fdt_attach(device_t self)
 	}
 
 	err = xhci_init(sc, self, 1);
-	if (!err) {
+	if (err == 0)
+		err = xhci_halt_controller(sc);
+	if (err == 0)
+		err = xhci_start_controller(sc);
+	if (err == 0)
 		err = device_probe_and_attach(sc->sc_bus.bdev);
-	}
 	if (err) {
 		device_printf(self, "USB init failed err=%d\n", err);
 		goto error;
