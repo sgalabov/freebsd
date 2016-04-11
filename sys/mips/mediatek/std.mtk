@@ -27,6 +27,11 @@ options			FDT_DTB_STATIC
 options			MIPS_INTRNG
 
 #
+# New PCIB code
+#
+options			NEW_PCIB
+
+#
 # MTK standard file list
 #
 files			"../mediatek/files.mtk"
