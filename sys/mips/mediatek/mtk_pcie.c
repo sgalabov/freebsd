@@ -684,8 +684,6 @@ mtk_pci_route_interrupt(device_t pcib, device_t device, int pin)
 	sl = pci_get_slot(device);
 	dev = pci_get_device(device);
 
-	printf("%s: for %d:%d:%d, int = %d\n", __FUNCTION__, bus, sl, dev, pin);
-
 	if (bus != 0)
 		panic("Unexpected bus number %d\n", bus);
 
