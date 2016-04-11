@@ -21,15 +21,6 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * The pci allocator parts are based on code from sys/dev/arm/mv/:
- *
- * Copyright (c) 2008 MARVELL INTERNATIONAL LTD.
- * Copyright (c) 2010 The FreeBSD Foundation
- * Copyright (c) 2010-2012 Semihalf
- * All rights reserved.
- *
- * Developed by Semihalf.
  */
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
