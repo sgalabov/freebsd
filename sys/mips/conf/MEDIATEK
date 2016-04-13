@@ -49,6 +49,23 @@ options 	ROOTDEVNAME=\"ufs:md0.uzip\"
 #options 	ROOTDEVNAME=\"ufs:ada0s1\"
 
 #
+# Static DTB section
+#
+# The user should choose one option in this section, depending on their SoC and
+# board. The currently supported DTS files are standard and should usually be
+# modified to suit at least the target board's flash partitioning, if needed.
+#
+
+# For MT7620 based boards
+makeoptions 	FDT_DTS_FILE=mediatek/MT7620.dts
+
+# For MT7628 or MT7688 based boards
+#makeoptions 	FDT_DTS_FILE=mediatek/MT7628.dts
+
+# For MT7621 based boards
+#makeoptions 	FDT_DTS_FILE=mediatek/MT7621.dts
+
+#
 # Optional drivers section
 #
 # What follows is optional support drivers for the Mediatek SoCs.
