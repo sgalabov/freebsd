@@ -1,0 +1,100 @@
+#
+# MEDIATEK -- Kernel configuration file for FreeBSD/MIPS Mediatek/Ralink SoCs
+#
+# This includes all the configurable parts of the kernel. Please read through
+# the sections below and customize the options to fit your board if needed.
+#
+# $FreeBSD$
+#
+
+# Include the standard definitions for Mediatek/Ralink SoCs
+include 	MEDIATEK_BASE
+
+# Don't build any modules by default
+makeoptions 	MODULES_OVERRIDE=""
+
+# Default kernel ident
+ident 		MEDIATEK
+
+#
+# CPU configuration section
+#
+# Various CPU cores are present in the supported Mediatek/Ralink SoCs.
+# This section allows to configure the proper CPU type for the target SoC.
+# The default CPU type is CPU_MIPS24K, which is currently the most common
+# CPU in the supported SoCs.
+#
+# For RT3050, RT3052, RT3350, RT3352, RT5350, MT7620, MT7628 and MT7688
+cpu 		CPU_MIPS24K
+# For RT3662 and RT3883
+#cpu 		CPU_MIPS74K
+# For MT7621
+#cpu 		CPU_MIPS1004K
+
+#
+# Default rootfs configuration, should be changed to suit the target board
+#
+
+# Support geom_uzip(4) compressed disk images
+device 		geom_uzip
+options 	GEOM_UZIP
+
+# Support md(4) and md-based rootfs
+device 		md
+options 	MD_ROOT
+
+# Default rootfs location is on md(4) geom_uzip(4) disk image
+options 	ROOTDEVNAME=\"ufs:md0.uzip\"
+#options 	ROOTDEVNAME=\"ufs:da0s1\"
+#options 	ROOTDEVNAME=\"ufs:ada0s1\"
+
+#
+# Optional drivers section
+#
+# What follows is optional support drivers for the Mediatek SoCs.
+# The kernel can be compiled without them if size is a concern.
+# All optional drivers are built by default.
+#
+
+# SPI and SPI flash support
+device 		spibus
+device 		mx25l
+
+# GPIO and gpioled support
+device 		gpio
+device 		gpioled
+
+# PCI support
+device 		pci
+
+#
+# USB (ehci, ohci, xhci, otg) support. Unneeded drivers can be commented in
+# order to lower kernel size. See below for driver SoC support.
+#
+# For all SoCs that require USB support
+device 		usb
+# For RT3050, RT3052 and RT3350 SoCs
+device 		dwcotg
+# For RT3352, RT3662, RT3883, RT5350, MT7620, MT7628 and MT7688
+device 		ohci
+device 		ehci
+# For MT7621, or cases where the target board has a XHCI controller on PCI
+# (for example Asus RT-N65U)
+device 		xhci
+
+# USB umass(4) storage and da(4) support
+device 		umass
+device 		da
+
+# ahci(4) and ada(4) support, depends on PCI
+device 		ahci
+device 		ada
+
+# CAM support, required if either umass(4) or ahci(4) is enabled above
+device 		pass
+device 		scbus
+
+# Ethernet, BPS and bridge support
+device 		rt
+device 		bpf
+device 		if_bridge

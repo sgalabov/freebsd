@@ -9,9 +9,11 @@ mips/mediatek/mtk_intr_gic.c		standard
 mips/mediatek/mtk_reset.c		standard
 mips/mediatek/mtk_clock.c		standard
 mips/mediatek/mtk_pinctrl.c		standard
+mips/mediatek/uart_dev_mtk.c		standard
+mips/mediatek/uart_dev_mtk_ns8250.c	standard
 mips/mediatek/mtk_spi_v1.c		optional spibus
 mips/mediatek/mtk_spi_v2.c		optional spibus
-mips/mediatek/mtk_usb_phy.c		optional usb usbphy
+mips/mediatek/mtk_usb_phy.c		optional usb
 mips/mediatek/mtk_xhci.c		optional usb xhci
 mips/mediatek/mtk_ohci.c		optional usb ohci
 mips/mediatek/mtk_ehci.c		optional usb ehci
@@ -20,8 +22,6 @@ mips/mediatek/mtk_pcie.c		optional pci
 mips/mediatek/mtk_gpio_v1.c		optional gpio
 mips/mediatek/mtk_gpio_v2.c		optional gpio
 #mips/mediatek/mtk_mmc.c		optional mmc
-mips/mediatek/uart_dev_mtk.c		standard
-mips/mediatek/uart_dev_mtk_ns8250.c	standard
 
 # Ralink/Mediatek Ethernet driver
 dev/rt/if_rt.c				optional rt
@@ -33,11 +33,8 @@ kern/pic_if.m				standard
 # Intrng compatible MIPS32 interrupt controller
 mips/mips/mips_pic.c			standard
 
-# Standard MIPS ticker with FDT attachment
-mips/mediatek/mtk_tick_mips.c		optional !gic_timer
-
-# MIPS GIC ticker - placeholder for now
-mips/mediatek/mtk_tick_gic.c		optional gic_timer
+# Standard MIPS ticker
+mips/mips/tick.c			standard
 
 # Temporary Reset if
 mips/mediatek/fdt_reset.c		standard

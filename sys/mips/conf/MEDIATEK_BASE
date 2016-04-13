@@ -1,122 +1,86 @@
-# MEDIATEK -- Base kernel configuration file for FreeBSD/mips for
-# Ralink/Mediatek systems
 #
-# For more information on this file, please read the handbook section on
-# Kernel Configuration Files:
+# MEDIATEK_BASE -- Base kernel configuration file for FreeBSD/MIPS
+# Mediatek/Ralink SoCs.
 #
-#    http://www.FreeBSD.org/doc/en_US.ISO8859-1/books/handbook/kernelconfig-config.html
-#
-# The handbook is also available locally in /usr/share/doc/handbook
-# if you've installed the doc distribution, otherwise always see the
-# FreeBSD World Wide Web server (http://www.FreeBSD.org/) for the
-# latest information.
-#
-# An exhaustive list of options and more detailed explanations of the
-# device lines is also present in the ../../conf/NOTES and NOTES files. 
-# If you are in doubt as to the purpose or necessity of a line, check first 
-# in NOTES.
+# This includes all the required drivers for the SoCs.
+# Ususally, users should not build this kernel configuration. It is provided
+# only as a minimum base, from which customizations can be made. Please look
+# at MEDIATEK kernel configuration for customization details.
 #
 # $FreeBSD$
+#
 
-ident		"Mediatek"
-include		"../mediatek/std.mtk"
+# Include the standard file list for Mediatek SoCs.
+files 		"../mediatek/files.mtk"
 
-# Don't build any modules yet.
-#makeoptions	MODULES_OVERRIDE="wlan_xauth wlan_wep wlan_tkip wlan_acl wlan_amrr wlan_ccmp wlan_rssadapt if_bridge bridgestp msdosfs md ipfw dummynet libalias geom/geom_label ufs usb/uplcom usb/u3g usb/umodem usb/umass usb/ucom cam zlib"
-makeoptions	MODULES_OVERRIDE=""
+# Building a mips/mipsel kernel
+machine 	mips mipsel
 
-makeoptions	DEBUG=-g		#Build kernel with gdb(1) debug symbols
+# Little-endian machine
+makeoptions 	MIPS_LITTLE_ENDIAN=defined
 
-# Debugging for use in -current
-options 	DEADLKRES		#Enable the deadlock resolver
-options 	INVARIANTS		#Enable calls of extra sanity checking
-options 	INVARIANT_SUPPORT	#Extra sanity checks of internal structures, required by INVARIANTS
-options 	WITNESS			#Enable checks to detect deadlocks and cycles
-options 	WITNESS_SKIPSPIN	#Don't run witness on spinlocks for speed
-#options 	DIAGNOSTIC
-#options 	DEBUG_LOCKS
-#options 	DEBUG_VFS_LOCKS
-#options 	GDB
+# Default kernel load address
+makeoptions 	KERNLOADADDR=0x80001000
+
+# Mediatek/Ralink SoC support depends on FDT (with static DTB for the moment)
+options 	FDT
+options 	FDT_DTB_STATIC
+
+# We rely on MIPS_INTRNG code
+options 	MIPS_INTRNG
+
+# We rely on NEW_PCIB code
+options 	NEW_PCIB
+
+# Build kernel with gdb(1) debug symbols
+makeoptions 	DEBUG=-g
+
+# Support for DDB and KDB
 options 	DDB
 options 	KDB
 
-options 	SCHED_ULE
-options 	INET			#InterNETworking
-#options 	NFSCL			#Network Filesystem Client
-#options 	NFS_ROOT		#NFS usable as /, requires NFSCL
-options 	PSEUDOFS		#Pseudo-filesystem framework
-#options 	_KPOSIX_PRIORITY_SCHEDULING #Posix P1003_1B real-time extensions
+# Debugging for use in -current
+options 	INVARIANTS
+options 	INVARIANT_SUPPORT
+options 	WITNESS
+options 	WITNESS_SKIPSPIN
+options 	DEBUG_REDZONE
+options 	DEBUG_MEMGUARD
 
-#options 	BOOTP
-#options 	BOOTP_NFSROOT
-#options 	BOOTP_NFSV3
-#options 	BOOTP_WIRED_TO=rt0
-#options 	BOOTP_COMPAT
+# For small memory footprints
+options 	VM_KMEM_SIZE_SCALE=1
 
-options 	TMPFS			# TMP Memory Filesystem
+# General options, including scheduler, etc.
+options 	SCHED_ULE	# ULE scheduler
+options 	INET		# InterNETworking
+#options 	INET6		# IPv6
+options 	PSEUDOFS	# Pseude-filesystem framework
+options 	FFS		# Berkeley Fast Filesystem
+#options 	SOFTUPDATES	# Enable FFS soft updates support
+#options 	UFS_ACL		# Support for access control lists
+#options 	UFS_DIRHASH	# Improve big directory performance
+#options 	MSDOSFS		# Enable support for MSDOS filesystems
+options 	_KPOSIX_PRIORITY_SCHEDULING	# Posix P1003_1B real-time ext.
 
-options 	FFS			#Berkeley Fast Filesystem
-#options 	ROOTDEVNAME=\"nfs:192.168.1.1:/bsdmips\"
+#
+# Standard drivers section
+#
+# The drivers in the following section are required in order to successfully
+# compile the kernel.
+#
 
-device 		geom_uzip
-options		GEOM_UZIP
-options		MD_ROOT
-options		ROOTDEVNAME=\"ufs:md0.uzip\"
+# FDT clock and pinctrl framework
+device 		fdt_clock
+device 		fdt_pinctrl
 
-# Options for making kernel less hangry
-makeoptions 	INLINE_LIMIT=1024
-options 	MAXUSERS=3
-options 	MAXFILES=512
-options 	NSFBUFS=256
-options 	SHMALL=128
-options 	MSGBUF_SIZE=65536
+# UART support
+device 		uart
 
-# Options for making kernel smallest 
-options 	NO_SYSCTL_DESCR		# No description string of sysctl
-#options 	NO_FFS_SNAPSHOT		# Disable Snapshot supporting
-options 	SCSI_NO_SENSE_STRINGS
-options 	SCSI_NO_OP_STRINGS
-options 	RWLOCK_NOINLINE
-options 	SX_NOINLINE
-options 	NO_SWAPPING
-options 	MROUTING                # Multicast routing
-options 	IPFIREWALL_DEFAULT_TO_ACCEPT
-
-device 		md
+# random support
 device 		random
+
+# loop device support
 device 		loop
 
-# RT3050F, RT3052F have only pseudo PHYs, so mii not required
-device		rt
-device		ether
-device		bpf			# Berkeley packet filter
-#device		vlan
-#device		lagg
-device		if_bridge
-device		uart
-#device		tun			# Packet tunnel.
-
-#device		wlan
-
-device		gpio
-device		gpioled
-
-#device		nvram2env
-
-device		spibus
-device		mx25l
-
-device		pci
-device		usb
-device		usbphy
-device		ehci
-device		ohci
-#device		xhci
-device		umass
-device		da
-device		pass
-device		scbus
-options 	SCSI_DELAY=1000		# Delay (in ms) before probing SCSI
-
-device		fdt_clock
-device		fdt_pinctrl
+# ether device support
+device 		ether
