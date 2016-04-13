@@ -10,6 +10,8 @@
 # $FreeBSD$
 #
 
+#NO_UNIVERSE
+
 # Include the standard file list for Mediatek SoCs.
 files 		"../mediatek/files.mtk"
 
