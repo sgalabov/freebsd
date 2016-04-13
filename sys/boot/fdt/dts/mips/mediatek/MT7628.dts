@@ -1,12 +1,11 @@
 /dts-v1/;
 
-/include/ "mediatek/mt7621.dtsi"
+/include/ "mediatek/mt7628an.dtsi"
 
 / {
 	memory@0 {
 		device_type = "memory";
-		reg = <0x0 0x10000000>;				/* 256MiB */
-//		reg = <0x0 0x1c000000>, <0x20000000 0x4000000>;	/* 512MiB */
+//		reg = <0x0 0x8000000>;	/* 128MiB */
 	};
 
 	chosen {
